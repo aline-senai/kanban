@@ -75,6 +75,29 @@ export type Estagio = {
   is_conclusao: boolean;
 };
 
+export type Atividade = {
+  id: string;
+  grupo_id: string;
+  estagio_id: string;
+  criador_id: string;
+  nome: string;
+  texto: string | null;
+  data_criacao: string;
+  data_inicio: string | null;
+  data_inicio_estagio: string;
+  data_fim: string | null;
+  responsaveis: User[];
+};
+
+export type AtividadeCreateInput = {
+  estagio_id: string;
+  nome: string;
+  texto?: string | null;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+  responsavel_ids?: string[];
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
@@ -128,6 +151,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ origem_turma_id: origemTurmaId }),
     }),
+
+  listAtividades: (grupoId: string) => request<Atividade[]>(`/grupos/${grupoId}/atividades`),
+  createAtividade: (grupoId: string, payload: AtividadeCreateInput) =>
+    request<Atividade>(`/grupos/${grupoId}/atividades`, { method: "POST", body: JSON.stringify(payload) }),
+  updateAtividade: (atividadeId: string, payload: Partial<AtividadeCreateInput>) =>
+    request<Atividade>(`/atividades/${atividadeId}`, { method: "PATCH", body: JSON.stringify(payload) }),
 };
 
 export { ApiError };

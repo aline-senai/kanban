@@ -33,6 +33,10 @@ class Atividade(Base):
     anexos = relationship("Anexo", back_populates="atividade", cascade="all, delete-orphan")
     comentarios = relationship("Comentario", back_populates="atividade", cascade="all, delete-orphan")
 
+    @property
+    def responsaveis_users(self):
+        return [r.user for r in self.responsaveis]
+
 
 class AtividadeResponsavel(Base):
     __tablename__ = "atividade_responsaveis"

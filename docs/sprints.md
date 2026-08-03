@@ -64,7 +64,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 4 — Atividades (Cards): criação e atribuição
+## Sprint 4 — Atividades (Cards): criação e atribuição ✅ (concluída)
 **Objetivo:** professor/gestor criam e atribuem atividades com todos os campos.
 **RFs:** RF12, RF13, RF14, RF15
 
