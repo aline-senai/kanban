@@ -1,3 +1,4 @@
+import os
 import uuid
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
@@ -35,3 +36,12 @@ class AnexoVersao(Base):
 
     anexo = relationship("Anexo", back_populates="versoes")
     uploaded_by = relationship("User")
+
+    @property
+    def nome_arquivo(self) -> str:
+        """Nome original do arquivo, sem o prefixo de versionamento usado no storage (ex: 'v2__')."""
+        basename = os.path.basename(self.arquivo_path)
+        prefixo = f"v{self.versao_numero}__"
+        if basename.startswith(prefixo):
+            return basename[len(prefixo):]
+        return basename

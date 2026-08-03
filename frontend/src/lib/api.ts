@@ -25,7 +25,10 @@ class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  // Ao enviar FormData o browser define o Content-Type (multipart) com o boundary correto.
+  if (!(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
@@ -36,6 +39,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return res.json();
+}
+
+async function downloadFile(path: string, filename: string) {
+  const token = getToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${API_URL}${path}`, { headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.detail ?? "Erro ao baixar arquivo");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export type User = {
@@ -104,6 +126,22 @@ export type ChecklistItem = {
   texto: string;
   concluido: boolean;
   ordem: number;
+};
+
+export type AnexoVersao = {
+  id: string;
+  versao_numero: number;
+  nome_arquivo: string;
+  uploaded_by: User;
+  created_at: string;
+};
+
+export type Anexo = {
+  id: string;
+  atividade_id: string;
+  nome_referencia: string;
+  created_at: string;
+  versoes: AnexoVersao[];
 };
 
 export const api = {
@@ -181,6 +219,16 @@ export const api = {
     request<ChecklistItem>(`/checklist/${itemId}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteChecklistItem: (itemId: string) =>
     request<void>(`/checklist/${itemId}`, { method: "DELETE" }),
+
+  listAnexos: (atividadeId: string) => request<Anexo[]>(`/atividades/${atividadeId}/anexos`),
+  uploadAnexo: (atividadeId: string, file: File, nomeReferencia?: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (nomeReferencia) formData.append("nome_referencia", nomeReferencia);
+    return request<Anexo>(`/atividades/${atividadeId}/anexos`, { method: "POST", body: formData });
+  },
+  downloadAnexoVersao: (versaoId: string, nomeArquivo: string) =>
+    downloadFile(`/anexo-versoes/${versaoId}/download`, nomeArquivo),
 };
 
 export { ApiError };

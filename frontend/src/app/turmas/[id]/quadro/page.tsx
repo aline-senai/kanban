@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import {
   api,
   ApiError,
+  type Anexo,
   type Atividade,
   type ChecklistItem,
   type Estagio,
@@ -439,13 +440,48 @@ function CardDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [novoTexto, setNovoTexto] = useState("");
 
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   useEffect(() => {
     api
       .listChecklist(atividade.id)
       .then(setItens)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar checklist"))
       .finally(() => setFetching(false));
+    api
+      .listAnexos(atividade.id)
+      .then(setAnexos)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar anexos"));
   }, [atividade.id]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const anexo = await api.uploadAnexo(atividade.id, file);
+      setAnexos((prev) => {
+        const existente = prev.find((a) => a.id === anexo.id);
+        return existente ? prev.map((a) => (a.id === anexo.id ? anexo : a)) : [...prev, anexo];
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao enviar arquivo");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleDownload(versaoId: string, nomeArquivo: string) {
+    setError(null);
+    try {
+      await api.downloadAnexoVersao(versaoId, nomeArquivo);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao baixar arquivo");
+    }
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -549,6 +585,42 @@ function CardDetailModal({
               </button>
             </form>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Anexos</h3>
+          {anexos.length === 0 ? (
+            <p className="text-sm text-black/60 dark:text-white/60">Nenhum anexo ainda.</p>
+          ) : (
+            <ul className="space-y-2">
+              {anexos.map((anexo) => (
+                <li key={anexo.id} className="text-sm">
+                  <p className="font-medium">{anexo.nome_referencia}</p>
+                  <ul className="ml-3 space-y-0.5">
+                    {[...anexo.versoes].reverse().map((versao) => (
+                      <li key={versao.id} className="flex items-center justify-between text-xs">
+                        <span className="text-black/60 dark:text-white/60">
+                          v{versao.versao_numero} — {versao.uploaded_by.name} —{" "}
+                          {new Date(versao.created_at).toLocaleDateString("pt-BR")}
+                        </span>
+                        <button
+                          onClick={() => handleDownload(versao.id, versao.nome_arquivo)}
+                          className="underline"
+                        >
+                          baixar
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <label className="inline-block cursor-pointer rounded-md border border-black/15 px-3 py-1 text-xs dark:border-white/15">
+            {uploading ? "Enviando..." : "+ Anexar arquivo"}
+            <input type="file" className="hidden" disabled={uploading} onChange={handleUpload} />
+          </label>
         </div>
       </div>
     </div>

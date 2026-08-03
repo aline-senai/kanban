@@ -109,7 +109,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 7 — Anexos com versionamento
+## Sprint 7 — Anexos com versionamento ✅ (concluída)
 **Objetivo:** upload de arquivos no card, com histórico de versões.
 **RFs:** RF16, RF20, RF21, RF22, RF22a
 

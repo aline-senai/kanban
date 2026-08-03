@@ -6,6 +6,7 @@ backend/venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/.env
+backend/storage/
 *.pyc
 
 # Frontend (Next.js) — node_modules/.next etc. already ignored via frontend/.gitignore
