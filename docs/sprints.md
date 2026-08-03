@@ -80,7 +80,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 5 — Movimentação de cards, histórico e RBAC de movimentação
+## Sprint 5 — Movimentação de cards, histórico e RBAC de movimentação ✅ (concluída)
 **Objetivo:** cards se movem entre estágios com as regras corretas e ficam auditáveis.
 **RFs:** RF10, RF11, RF18, RF19
 

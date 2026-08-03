@@ -157,6 +157,11 @@ export const api = {
     request<Atividade>(`/grupos/${grupoId}/atividades`, { method: "POST", body: JSON.stringify(payload) }),
   updateAtividade: (atividadeId: string, payload: Partial<AtividadeCreateInput>) =>
     request<Atividade>(`/atividades/${atividadeId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  moverAtividade: (atividadeId: string, estagioId: string) =>
+    request<Atividade>(`/atividades/${atividadeId}/mover`, {
+      method: "PATCH",
+      body: JSON.stringify({ estagio_id: estagioId }),
+    }),
 };
 
 export { ApiError };

@@ -37,3 +37,19 @@ class AtividadeOut(BaseModel):
     data_inicio_estagio: datetime
     data_fim: datetime | None
     responsaveis: list[UserOut] = Field(validation_alias="responsaveis_users")
+
+
+class MoverAtividadeRequest(BaseModel):
+    estagio_id: uuid.UUID
+
+
+class HistoricoEntryOut(BaseModel):
+    id: uuid.UUID
+    estagio_de_id: uuid.UUID | None
+    estagio_de_nome: str | None
+    estagio_para_id: uuid.UUID
+    estagio_para_nome: str
+    user_id: uuid.UUID
+    user_name: str
+    created_at: datetime
+    duracao_segundos: int

@@ -3,6 +3,15 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { useAuth } from "@/lib/auth-context";
 import { api, ApiError, type Atividade, type Estagio, type Grupo, type Turma } from "@/lib/api";
 
@@ -23,6 +32,8 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   const [novoIsConclusao, setNovoIsConclusao] = useState(false);
   const [origemDuplicar, setOrigemDuplicar] = useState("");
   const [novaAtividadeEstagio, setNovaAtividadeEstagio] = useState<string | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -158,6 +169,30 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
     }
   }
 
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const atividadeId = String(active.id);
+    const novoEstagioId = String(over.id);
+
+    const atividade = atividades.find((a) => a.id === atividadeId);
+    if (!atividade || atividade.estagio_id === novoEstagioId) return;
+
+    const anterior = atividade.estagio_id;
+    setAtividades((prev) =>
+      prev.map((a) => (a.id === atividadeId ? { ...a, estagio_id: novoEstagioId } : a))
+    );
+    setError(null);
+    try {
+      await api.moverAtividade(atividadeId, novoEstagioId);
+    } catch (err) {
+      setAtividades((prev) =>
+        prev.map((a) => (a.id === atividadeId ? { ...a, estagio_id: anterior } : a))
+      );
+      setError(err instanceof ApiError ? err.message : "Erro ao mover atividade");
+    }
+  }
+
   if (loading || !user) return null;
 
   const grupoAtual = grupos.find((g) => g.id === grupoSelecionado);
@@ -165,6 +200,16 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
     user.role === "professor" ||
     grupoAtual?.membros.some((m) => m.user.id === user.id && m.is_gestor) ||
     false;
+
+  const maxOrdem = estagios.length > 0 ? Math.max(...estagios.map((e) => e.ordem)) : 0;
+  const estagioFinalId = estagios.find((e) => e.ordem === maxOrdem)?.id;
+  const hoje = new Date();
+
+  function isAtrasada(atividade: Atividade) {
+    if (!atividade.data_fim) return false;
+    if (atividade.estagio_id === estagioFinalId) return false;
+    return new Date(atividade.data_fim) < hoje;
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 space-y-8 px-4 py-10">
@@ -255,95 +300,147 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
       ) : estagios.length === 0 ? (
         <p className="text-sm text-black/60 dark:text-white/60">Nenhum estágio criado ainda.</p>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {estagios.map((estagio, index) => (
-            <div
-              key={estagio.id}
-              className="w-72 shrink-0 rounded-lg border border-black/10 p-3 dark:border-white/10"
-            >
-              <div className="mb-2 flex items-center justify-between">
-                {podeGerenciar ? (
-                  <button onClick={() => handleRename(estagio)} className="text-left text-sm font-medium hover:underline">
-                    {estagio.nome}
-                  </button>
-                ) : (
-                  <span className="text-sm font-medium">{estagio.nome}</span>
-                )}
-                {estagio.is_conclusao && (
-                  <span className="rounded bg-black/10 px-2 py-0.5 text-xs dark:bg-white/10">
-                    aprovação
-                  </span>
-                )}
-              </div>
-
-              {podeGerenciar && (
-                <div className="mb-3 flex flex-wrap gap-2 text-xs">
-                  <button onClick={() => handleMove(index, -1)} disabled={index === 0} className="underline disabled:opacity-30">
-                    ← mover
-                  </button>
-                  <button
-                    onClick={() => handleMove(index, 1)}
-                    disabled={index === estagios.length - 1}
-                    className="underline disabled:opacity-30"
-                  >
-                    mover →
-                  </button>
-                  <button onClick={() => handleToggleConclusao(estagio)} className="underline">
-                    {estagio.is_conclusao ? "desmarcar aprovação" : "marcar aprovação"}
-                  </button>
-                  <button onClick={() => handleDelete(estagio)} className="underline">
-                    remover
-                  </button>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {atividades
-                  .filter((a) => a.estagio_id === estagio.id)
-                  .map((atividade) => (
-                    <div
-                      key={atividade.id}
-                      className="rounded-md border border-black/10 bg-black/[.02] p-2 text-sm dark:border-white/10 dark:bg-white/[.03]"
-                    >
-                      <p className="font-medium">{atividade.nome}</p>
-                      {atividade.data_fim && (
-                        <p className="text-xs text-black/60 dark:text-white/60">
-                          Prazo: {new Date(atividade.data_fim).toLocaleDateString("pt-BR")}
-                        </p>
-                      )}
-                      {atividade.responsaveis.length > 0 && (
-                        <p className="text-xs text-black/60 dark:text-white/60">
-                          {atividade.responsaveis.map((r) => r.name).join(", ")}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-              </div>
-
-              {podeGerenciar && grupoSelecionado && (
-                <div className="mt-3">
-                  {novaAtividadeEstagio === estagio.id ? (
-                    <NovaAtividadeForm
-                      membros={grupoAtual?.membros ?? []}
-                      onCancel={() => setNovaAtividadeEstagio(null)}
-                      onCreate={(nome, responsavelIds) =>
-                        handleCreateAtividade(estagio.id, nome, responsavelIds)
-                      }
-                    />
-                  ) : (
-                    <button
-                      onClick={() => setNovaAtividadeEstagio(estagio.id)}
-                      className="text-xs underline"
-                    >
-                      + Nova atividade
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {estagios.map((estagio, index) => (
+              <ColumnDropZone key={estagio.id} estagioId={estagio.id}>
+                <div className="mb-2 flex items-center justify-between">
+                  {podeGerenciar ? (
+                    <button onClick={() => handleRename(estagio)} className="text-left text-sm font-medium hover:underline">
+                      {estagio.nome}
                     </button>
+                  ) : (
+                    <span className="text-sm font-medium">{estagio.nome}</span>
+                  )}
+                  {estagio.is_conclusao && (
+                    <span className="rounded bg-black/10 px-2 py-0.5 text-xs dark:bg-white/10">
+                      aprovação
+                    </span>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+
+                {podeGerenciar && (
+                  <div className="mb-3 flex flex-wrap gap-2 text-xs">
+                    <button onClick={() => handleMove(index, -1)} disabled={index === 0} className="underline disabled:opacity-30">
+                      ← mover
+                    </button>
+                    <button
+                      onClick={() => handleMove(index, 1)}
+                      disabled={index === estagios.length - 1}
+                      className="underline disabled:opacity-30"
+                    >
+                      mover →
+                    </button>
+                    <button onClick={() => handleToggleConclusao(estagio)} className="underline">
+                      {estagio.is_conclusao ? "desmarcar aprovação" : "marcar aprovação"}
+                    </button>
+                    <button onClick={() => handleDelete(estagio)} className="underline">
+                      remover
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {atividades
+                    .filter((a) => a.estagio_id === estagio.id)
+                    .map((atividade) => (
+                      <DraggableCard key={atividade.id} atividadeId={atividade.id}>
+                        <div
+                          className={`rounded-md border p-2 text-sm ${
+                            isAtrasada(atividade)
+                              ? "border-red-400 bg-red-50 dark:border-red-500/60 dark:bg-red-950/30"
+                              : "border-black/10 bg-black/[.02] dark:border-white/10 dark:bg-white/[.03]"
+                          }`}
+                        >
+                          <p className="font-medium">{atividade.nome}</p>
+                          {atividade.data_fim && (
+                            <p
+                              className={`text-xs ${
+                                isAtrasada(atividade)
+                                  ? "font-medium text-red-600 dark:text-red-400"
+                                  : "text-black/60 dark:text-white/60"
+                              }`}
+                            >
+                              {isAtrasada(atividade) ? "Atrasada — " : "Prazo: "}
+                              {new Date(atividade.data_fim).toLocaleDateString("pt-BR")}
+                            </p>
+                          )}
+                          {atividade.responsaveis.length > 0 && (
+                            <p className="text-xs text-black/60 dark:text-white/60">
+                              {atividade.responsaveis.map((r) => r.name).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      </DraggableCard>
+                    ))}
+                </div>
+
+                {podeGerenciar && grupoSelecionado && (
+                  <div className="mt-3">
+                    {novaAtividadeEstagio === estagio.id ? (
+                      <NovaAtividadeForm
+                        membros={grupoAtual?.membros ?? []}
+                        onCancel={() => setNovaAtividadeEstagio(null)}
+                        onCreate={(nome, responsavelIds) =>
+                          handleCreateAtividade(estagio.id, nome, responsavelIds)
+                        }
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setNovaAtividadeEstagio(estagio.id)}
+                        className="text-xs underline"
+                      >
+                        + Nova atividade
+                      </button>
+                    )}
+                  </div>
+                )}
+              </ColumnDropZone>
+            ))}
+          </div>
+        </DndContext>
       )}
+    </div>
+  );
+}
+
+function ColumnDropZone({
+  estagioId,
+  children,
+}: {
+  estagioId: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: estagioId });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`w-72 shrink-0 rounded-lg border p-3 transition-colors ${
+        isOver ? "border-foreground/40 bg-black/[.03] dark:bg-white/[.05]" : "border-black/10 dark:border-white/10"
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableCard({ atividadeId, children }: { atividadeId: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: atividadeId });
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 10 }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={`cursor-grab active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+    >
+      {children}
     </div>
   );
 }

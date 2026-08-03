@@ -61,3 +61,7 @@ class AtividadeHistorico(Base):
     estagio_de_id = Column(UUID(as_uuid=True), ForeignKey("estagios.id"), nullable=True)
     estagio_para_id = Column(UUID(as_uuid=True), ForeignKey("estagios.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+    estagio_de = relationship("Estagio", foreign_keys=[estagio_de_id])
+    estagio_para = relationship("Estagio", foreign_keys=[estagio_para_id])
