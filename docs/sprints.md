@@ -32,7 +32,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 2 — Grupos & Integrantes
+## Sprint 2 — Grupos & Integrantes ✅ (concluída)
 **Objetivo:** professor organiza a turma em grupos e define gestores.
 **RFs:** RF04, RF05, RF06, RF07
 

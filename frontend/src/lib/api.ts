@@ -53,6 +53,19 @@ export type Turma = {
   created_at: string;
 };
 
+export type GrupoMembro = {
+  id: string;
+  is_gestor: boolean;
+  user: User;
+};
+
+export type Grupo = {
+  id: string;
+  turma_id: string;
+  nome: string;
+  membros: GrupoMembro[];
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
@@ -65,6 +78,26 @@ export const api = {
     request<Turma>("/turmas", { method: "POST", body: JSON.stringify({ nome }) }),
   updateTurma: (id: string, payload: Partial<Pick<Turma, "nome" | "arquivada">>) =>
     request<Turma>(`/turmas/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  listAlunos: () => request<User[]>("/users"),
+  createAluno: (name: string, email: string, password: string) =>
+    request<User>("/users", { method: "POST", body: JSON.stringify({ name, email, password }) }),
+
+  listGrupos: (turmaId: string) => request<Grupo[]>(`/turmas/${turmaId}/grupos`),
+  createGrupo: (turmaId: string, nome: string) =>
+    request<Grupo>(`/turmas/${turmaId}/grupos`, { method: "POST", body: JSON.stringify({ nome }) }),
+  addMembro: (grupoId: string, userId: string, isGestor: boolean) =>
+    request<Grupo>(`/grupos/${grupoId}/membros`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, is_gestor: isGestor }),
+    }),
+  updateMembro: (grupoId: string, userId: string, isGestor: boolean) =>
+    request<Grupo>(`/grupos/${grupoId}/membros/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_gestor: isGestor }),
+    }),
+  removeMembro: (grupoId: string, userId: string) =>
+    request<Grupo>(`/grupos/${grupoId}/membros/${userId}`, { method: "DELETE" }),
 };
 
 export { ApiError };

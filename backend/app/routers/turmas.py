@@ -26,7 +26,7 @@ def create_turma(payload: TurmaCreate, current_user: User = Depends(require_prof
     return turma
 
 
-def _get_owned_turma(turma_id: uuid.UUID, current_user: User, db: Session) -> Turma:
+def get_owned_turma(turma_id: uuid.UUID, current_user: User, db: Session) -> Turma:
     turma = db.get(Turma, turma_id)
     if turma is None or turma.professor_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada")
@@ -40,7 +40,7 @@ def update_turma(
     current_user: User = Depends(require_professor),
     db: Session = Depends(get_db),
 ):
-    turma = _get_owned_turma(turma_id, current_user, db)
+    turma = get_owned_turma(turma_id, current_user, db)
     if payload.nome is not None:
         turma.nome = payload.nome
     if payload.arquivada is not None:

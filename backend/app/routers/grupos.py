@@ -1,0 +1,122 @@
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.deps import require_professor
+from app.models.grupo import Grupo, GrupoMembro
+from app.models.user import User, UserRole
+from app.routers.turmas import get_owned_turma
+from app.schemas.grupo import GrupoCreate, GrupoMembroCreate, GrupoMembroUpdate, GrupoOut
+
+router = APIRouter(tags=["grupos"])
+
+
+def _get_owned_grupo(grupo_id: uuid.UUID, current_user: User, db: Session) -> Grupo:
+    grupo = db.get(Grupo, grupo_id)
+    if grupo is None or grupo.turma.professor_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grupo não encontrado")
+    return grupo
+
+
+@router.get("/turmas/{turma_id}/grupos", response_model=list[GrupoOut])
+def list_grupos(
+    turma_id: uuid.UUID, current_user: User = Depends(require_professor), db: Session = Depends(get_db)
+):
+    get_owned_turma(turma_id, current_user, db)
+    return db.query(Grupo).filter(Grupo.turma_id == turma_id).order_by(Grupo.nome).all()
+
+
+@router.post("/turmas/{turma_id}/grupos", response_model=GrupoOut, status_code=status.HTTP_201_CREATED)
+def create_grupo(
+    turma_id: uuid.UUID,
+    payload: GrupoCreate,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    get_owned_turma(turma_id, current_user, db)
+    grupo = Grupo(turma_id=turma_id, nome=payload.nome)
+    db.add(grupo)
+    db.commit()
+    db.refresh(grupo)
+    return grupo
+
+
+@router.post(
+    "/grupos/{grupo_id}/membros", response_model=GrupoOut, status_code=status.HTTP_201_CREATED
+)
+def add_membro(
+    grupo_id: uuid.UUID,
+    payload: GrupoMembroCreate,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    grupo = _get_owned_grupo(grupo_id, current_user, db)
+
+    user = db.get(User, payload.user_id)
+    if user is None or user.role != UserRole.ALUNO:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aluno inválido")
+
+    ja_em_outro_grupo = (
+        db.query(GrupoMembro)
+        .join(Grupo, GrupoMembro.grupo_id == Grupo.id)
+        .filter(Grupo.turma_id == grupo.turma_id, GrupoMembro.user_id == payload.user_id)
+        .first()
+    )
+    if ja_em_outro_grupo is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Integrante já pertence a um grupo desta turma",
+        )
+
+    membro = GrupoMembro(grupo_id=grupo_id, user_id=payload.user_id, is_gestor=payload.is_gestor)
+    db.add(membro)
+    db.commit()
+    db.refresh(grupo)
+    return grupo
+
+
+@router.patch("/grupos/{grupo_id}/membros/{user_id}", response_model=GrupoOut)
+def update_membro(
+    grupo_id: uuid.UUID,
+    user_id: uuid.UUID,
+    payload: GrupoMembroUpdate,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    grupo = _get_owned_grupo(grupo_id, current_user, db)
+    membro = (
+        db.query(GrupoMembro)
+        .filter(GrupoMembro.grupo_id == grupo_id, GrupoMembro.user_id == user_id)
+        .first()
+    )
+    if membro is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integrante não encontrado no grupo")
+
+    membro.is_gestor = payload.is_gestor
+    db.commit()
+    db.refresh(grupo)
+    return grupo
+
+
+@router.delete("/grupos/{grupo_id}/membros/{user_id}", response_model=GrupoOut)
+def remove_membro(
+    grupo_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    grupo = _get_owned_grupo(grupo_id, current_user, db)
+    membro = (
+        db.query(GrupoMembro)
+        .filter(GrupoMembro.grupo_id == grupo_id, GrupoMembro.user_id == user_id)
+        .first()
+    )
+    if membro is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integrante não encontrado no grupo")
+
+    db.delete(membro)
+    db.commit()
+    db.refresh(grupo)
+    return grupo

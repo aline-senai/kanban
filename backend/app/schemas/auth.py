@@ -1,8 +1,8 @@
-import uuid
-
 from pydantic import BaseModel, EmailStr
 
-from app.models.user import UserRole
+from app.schemas.user import UserOut
+
+__all__ = ["LoginRequest", "Token", "UserOut"]
 
 
 class LoginRequest(BaseModel):
@@ -13,13 +13,3 @@ class LoginRequest(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-
-
-class UserOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    email: EmailStr
-    role: UserRole
-
-    class Config:
-        from_attributes = True

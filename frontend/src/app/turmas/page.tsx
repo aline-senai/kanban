@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api, ApiError, type Turma } from "@/lib/api";
@@ -92,7 +93,12 @@ export default function TurmasPage() {
         <ul className="divide-y divide-black/10 dark:divide-white/10">
           {turmas.map((turma) => (
             <li key={turma.id} className="flex items-center justify-between py-3">
-              <span className={turma.arquivada ? "line-through opacity-60" : ""}>{turma.nome}</span>
+              <Link
+                href={`/turmas/${turma.id}`}
+                className={turma.arquivada ? "line-through opacity-60" : "hover:underline"}
+              >
+                {turma.nome}
+              </Link>
               <button onClick={() => handleToggleArquivada(turma)} className="text-sm underline">
                 {turma.arquivada ? "Desarquivar" : "Arquivar"}
               </button>
