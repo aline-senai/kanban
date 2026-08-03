@@ -13,7 +13,15 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { useAuth } from "@/lib/auth-context";
-import { api, ApiError, type Atividade, type Estagio, type Grupo, type Turma } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type Atividade,
+  type ChecklistItem,
+  type Estagio,
+  type Grupo,
+  type Turma,
+} from "@/lib/api";
 
 export default function QuadroPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: turmaId } = use(params);
@@ -32,6 +40,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   const [novoIsConclusao, setNovoIsConclusao] = useState(false);
   const [origemDuplicar, setOrigemDuplicar] = useState("");
   const [novaAtividadeEstagio, setNovaAtividadeEstagio] = useState<string | null>(null);
+  const [atividadeSelecionada, setAtividadeSelecionada] = useState<Atividade | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -346,7 +355,8 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
                     .map((atividade) => (
                       <DraggableCard key={atividade.id} atividadeId={atividade.id}>
                         <div
-                          className={`rounded-md border p-2 text-sm ${
+                          onClick={() => setAtividadeSelecionada(atividade)}
+                          className={`cursor-pointer rounded-md border p-2 text-sm ${
                             isAtrasada(atividade)
                               ? "border-red-400 bg-red-50 dark:border-red-500/60 dark:bg-red-950/30"
                               : "border-black/10 bg-black/[.02] dark:border-white/10 dark:bg-white/[.03]"
@@ -400,6 +410,147 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
           </div>
         </DndContext>
       )}
+
+      {atividadeSelecionada && (
+        <CardDetailModal
+          atividade={atividadeSelecionada}
+          podeEditar={
+            podeGerenciar ||
+            atividadeSelecionada.responsaveis.some((r) => r.id === user.id)
+          }
+          onClose={() => setAtividadeSelecionada(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CardDetailModal({
+  atividade,
+  podeEditar,
+  onClose,
+}: {
+  atividade: Atividade;
+  podeEditar: boolean;
+  onClose: () => void;
+}) {
+  const [itens, setItens] = useState<ChecklistItem[]>([]);
+  const [fetching, setFetching] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [novoTexto, setNovoTexto] = useState("");
+
+  useEffect(() => {
+    api
+      .listChecklist(atividade.id)
+      .then(setItens)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar checklist"))
+      .finally(() => setFetching(false));
+  }, [atividade.id]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!novoTexto.trim()) return;
+    setError(null);
+    try {
+      const item = await api.createChecklistItem(atividade.id, novoTexto.trim());
+      setItens((prev) => [...prev, item]);
+      setNovoTexto("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao adicionar item");
+    }
+  }
+
+  async function handleToggle(item: ChecklistItem) {
+    setError(null);
+    try {
+      const updated = await api.updateChecklistItem(item.id, { concluido: !item.concluido });
+      setItens((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao atualizar item");
+    }
+  }
+
+  async function handleRemove(item: ChecklistItem) {
+    setError(null);
+    try {
+      await api.deleteChecklistItem(item.id);
+      setItens((prev) => prev.filter((i) => i.id !== item.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao remover item");
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold">{atividade.nome}</h2>
+          <button onClick={onClose} className="text-sm underline">
+            Fechar
+          </button>
+        </div>
+
+        {atividade.responsaveis.length > 0 && (
+          <p className="text-sm text-black/60 dark:text-white/60">
+            Responsáveis: {atividade.responsaveis.map((r) => r.name).join(", ")}
+          </p>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Checklist</h3>
+          {fetching ? (
+            <p className="text-sm text-black/60 dark:text-white/60">Carregando...</p>
+          ) : itens.length === 0 ? (
+            <p className="text-sm text-black/60 dark:text-white/60">Nenhum item ainda.</p>
+          ) : (
+            <ul className="space-y-1">
+              {itens.map((item) => (
+                <li key={item.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={item.concluido}
+                    disabled={!podeEditar}
+                    onChange={() => handleToggle(item)}
+                  />
+                  <span className={item.concluido ? "flex-1 line-through opacity-60" : "flex-1"}>
+                    {item.texto}
+                  </span>
+                  {podeEditar && (
+                    <button onClick={() => handleRemove(item)} className="text-xs underline">
+                      remover
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {podeEditar && (
+            <form onSubmit={handleAdd} className="flex gap-2 pt-1">
+              <input
+                value={novoTexto}
+                onChange={(e) => setNovoTexto(e.target.value)}
+                placeholder="Novo item do checklist"
+                className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+              />
+              <button
+                type="submit"
+                className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background"
+              >
+                Adicionar
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

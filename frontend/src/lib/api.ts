@@ -98,6 +98,14 @@ export type AtividadeCreateInput = {
   responsavel_ids?: string[];
 };
 
+export type ChecklistItem = {
+  id: string;
+  atividade_id: string;
+  texto: string;
+  concluido: boolean;
+  ordem: number;
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
@@ -162,6 +170,17 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ estagio_id: estagioId }),
     }),
+
+  listChecklist: (atividadeId: string) => request<ChecklistItem[]>(`/atividades/${atividadeId}/checklist`),
+  createChecklistItem: (atividadeId: string, texto: string) =>
+    request<ChecklistItem>(`/atividades/${atividadeId}/checklist`, {
+      method: "POST",
+      body: JSON.stringify({ texto }),
+    }),
+  updateChecklistItem: (itemId: string, payload: Partial<Pick<ChecklistItem, "texto" | "concluido">>) =>
+    request<ChecklistItem>(`/checklist/${itemId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteChecklistItem: (itemId: string) =>
+    request<void>(`/checklist/${itemId}`, { method: "DELETE" }),
 };
 
 export { ApiError };

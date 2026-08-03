@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.permissions import can_manage_grupo, is_member_or_manager
 from app.models.atividade import Atividade, AtividadeHistorico, AtividadeResponsavel
 from app.models.estagio import Estagio
 from app.models.grupo import Grupo, GrupoMembro
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.atividade import (
     AtividadeCreate,
     AtividadeOut,
@@ -26,28 +27,6 @@ def _get_grupo_or_404(grupo_id: uuid.UUID, db: Session) -> Grupo:
     if grupo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grupo não encontrado")
     return grupo
-
-
-def _can_manage_grupo(grupo: Grupo, user: User, db: Session) -> bool:
-    if user.role == UserRole.PROFESSOR and grupo.turma.professor_id == user.id:
-        return True
-    return (
-        db.query(GrupoMembro)
-        .filter(GrupoMembro.grupo_id == grupo.id, GrupoMembro.user_id == user.id, GrupoMembro.is_gestor.is_(True))
-        .first()
-        is not None
-    )
-
-
-def _is_member_or_manager(grupo: Grupo, user: User, db: Session) -> bool:
-    if _can_manage_grupo(grupo, user, db):
-        return True
-    return (
-        db.query(GrupoMembro)
-        .filter(GrupoMembro.grupo_id == grupo.id, GrupoMembro.user_id == user.id)
-        .first()
-        is not None
-    )
 
 
 def _validate_responsaveis(grupo_id: uuid.UUID, responsavel_ids: list[uuid.UUID], db: Session):
@@ -70,7 +49,7 @@ def list_atividades(
     grupo_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     grupo = _get_grupo_or_404(grupo_id, db)
-    if not _is_member_or_manager(grupo, current_user, db):
+    if not is_member_or_manager(grupo, current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem acesso a este grupo")
     return db.query(Atividade).filter(Atividade.grupo_id == grupo_id).order_by(Atividade.data_criacao).all()
 
@@ -83,7 +62,7 @@ def create_atividade(
     db: Session = Depends(get_db),
 ):
     grupo = _get_grupo_or_404(grupo_id, db)
-    if not _can_manage_grupo(grupo, current_user, db):
+    if not can_manage_grupo(grupo, current_user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Apenas professor ou gestor podem criar atividades"
         )
@@ -118,7 +97,7 @@ def _get_manageable_atividade(atividade_id: uuid.UUID, current_user: User, db: S
     atividade = db.get(Atividade, atividade_id)
     if atividade is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada")
-    if not _can_manage_grupo(atividade.grupo, current_user, db):
+    if not can_manage_grupo(atividade.grupo, current_user, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Apenas professor ou gestor podem editar esta atividade"
         )
@@ -155,7 +134,7 @@ def update_atividade(
 
 
 def _can_move_atividade(atividade: Atividade, user: User, db: Session) -> bool:
-    if _can_manage_grupo(atividade.grupo, user, db):
+    if can_manage_grupo(atividade.grupo, user, db):
         return True
 
     is_responsavel = (
@@ -220,7 +199,7 @@ def historico_atividade(
     atividade = db.get(Atividade, atividade_id)
     if atividade is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada")
-    if not _is_member_or_manager(atividade.grupo, current_user, db):
+    if not is_member_or_manager(atividade.grupo, current_user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem acesso a esta atividade")
 
     entradas = (

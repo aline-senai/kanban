@@ -96,7 +96,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 6 — Checklist do card
+## Sprint 6 — Checklist do card ✅ (concluída)
 **Objetivo:** subtarefas dentro da atividade.
 **RFs:** RF16a
 
