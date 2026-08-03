@@ -115,9 +115,12 @@ export default function TurmaDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-8 px-4 py-10">
-      <div>
+      <div className="flex items-center justify-between">
         <Link href="/turmas" className="text-sm underline">
           ← Minhas turmas
+        </Link>
+        <Link href={`/turmas/${turmaId}/quadro`} className="text-sm underline">
+          Quadro Kanban →
         </Link>
       </div>
 

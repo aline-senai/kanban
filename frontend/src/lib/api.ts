@@ -66,6 +66,15 @@ export type Grupo = {
   membros: GrupoMembro[];
 };
 
+export type Estagio = {
+  id: string;
+  turma_id: string;
+  nome: string;
+  ordem: number;
+  cor: string | null;
+  is_conclusao: boolean;
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
@@ -98,6 +107,27 @@ export const api = {
     }),
   removeMembro: (grupoId: string, userId: string) =>
     request<Grupo>(`/grupos/${grupoId}/membros/${userId}`, { method: "DELETE" }),
+
+  listEstagios: (turmaId: string) => request<Estagio[]>(`/turmas/${turmaId}/estagios`),
+  createEstagio: (turmaId: string, nome: string, isConclusao: boolean) =>
+    request<Estagio>(`/turmas/${turmaId}/estagios`, {
+      method: "POST",
+      body: JSON.stringify({ nome, is_conclusao: isConclusao }),
+    }),
+  updateEstagio: (estagioId: string, payload: Partial<Pick<Estagio, "nome" | "cor" | "is_conclusao">>) =>
+    request<Estagio>(`/estagios/${estagioId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteEstagio: (estagioId: string) =>
+    request<void>(`/estagios/${estagioId}`, { method: "DELETE" }),
+  reorderEstagios: (turmaId: string, estagioIds: string[]) =>
+    request<Estagio[]>(`/turmas/${turmaId}/estagios/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({ estagio_ids: estagioIds }),
+    }),
+  duplicarEstagios: (turmaId: string, origemTurmaId: string) =>
+    request<Estagio[]>(`/turmas/${turmaId}/estagios/duplicar`, {
+      method: "POST",
+      body: JSON.stringify({ origem_turma_id: origemTurmaId }),
+    }),
 };
 
 export { ApiError };

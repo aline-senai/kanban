@@ -47,7 +47,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 3 — Quadro Kanban & Estágios
+## Sprint 3 — Quadro Kanban & Estágios ✅ (concluída)
 **Objetivo:** o quadro existe e tem colunas customizáveis, incluindo o estágio de aprovação.
 **RFs:** RF03 (completar), RF08, RF09, RF19a
 
