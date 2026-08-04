@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_professor
+from app.core.deps import get_current_user, require_professor
+from app.core.permissions import has_turma_access
 from app.models.estagio import Estagio
+from app.models.turma import Turma
 from app.models.user import User
 from app.routers.turmas import get_owned_turma
 from app.schemas.estagio import (
@@ -28,9 +30,15 @@ def _get_owned_estagio(estagio_id: uuid.UUID, current_user: User, db: Session) -
 
 @router.get("/turmas/{turma_id}/estagios", response_model=list[EstagioOut])
 def list_estagios(
-    turma_id: uuid.UUID, current_user: User = Depends(require_professor), db: Session = Depends(get_db)
+    turma_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    get_owned_turma(turma_id, current_user, db)
+    """RF25/RF26: leitura liberada a quem tem acesso à turma (professor dono, gestor ou integrante)."""
+    turma = db.get(Turma, turma_id)
+    if turma is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada")
+    if not has_turma_access(turma, current_user, db):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem acesso a esta turma")
+
     return db.query(Estagio).filter(Estagio.turma_id == turma_id).order_by(Estagio.ordem).all()
 
 

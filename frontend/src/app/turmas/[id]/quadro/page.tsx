@@ -44,6 +44,10 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   const [novaAtividadeEstagio, setNovaAtividadeEstagio] = useState<string | null>(null);
   const [atividadeSelecionada, setAtividadeSelecionada] = useState<Atividade | null>(null);
 
+  const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | "atrasado" | "em_dia">("todos");
+  const [filtroComPrazo, setFiltroComPrazo] = useState(false);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
@@ -207,8 +211,11 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   if (loading || !user) return null;
 
   const grupoAtual = grupos.find((g) => g.id === grupoSelecionado);
-  const podeGerenciar =
-    user.role === "professor" ||
+  // RBAC (backlog seção 3): estágios do quadro são exclusivos do professor;
+  // criar/atribuir atividades é permitido a professor e gestor do grupo.
+  const podeGerenciarEstagios = user.role === "professor";
+  const podeGerenciarAtividades =
+    podeGerenciarEstagios ||
     grupoAtual?.membros.some((m) => m.user.id === user.id && m.is_gestor) ||
     false;
 
@@ -222,11 +229,21 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
     return new Date(atividade.data_fim) < hoje;
   }
 
+  function passaNosFiltros(atividade: Atividade) {
+    if (filtroResponsavel && !atividade.responsaveis.some((r) => r.id === filtroResponsavel)) return false;
+    if (filtroComPrazo && !atividade.data_fim) return false;
+    if (filtroStatus === "atrasado" && !isAtrasada(atividade)) return false;
+    if (filtroStatus === "em_dia" && isAtrasada(atividade)) return false;
+    return true;
+  }
+
+  const isProfessor = user.role === "professor";
+
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 space-y-8 px-4 py-10">
       <div className="flex items-center justify-between">
-        <Link href={`/turmas/${turmaId}`} className="text-sm underline">
-          ← Grupos da turma
+        <Link href={isProfessor ? `/turmas/${turmaId}` : "/turmas"} className="text-sm underline">
+          {isProfessor ? "← Grupos da turma" : "← Meus quadros"}
         </Link>
         <h1 className="text-xl font-semibold">Quadro Kanban</h1>
         <span />
@@ -234,7 +251,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {grupos.length > 0 && (
+      {isProfessor && grupos.length > 0 ? (
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium">Grupo:</label>
           <select
@@ -249,9 +266,58 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
             ))}
           </select>
         </div>
+      ) : (
+        grupoAtual && <p className="text-sm font-medium">Grupo: {grupoAtual.nome}</p>
       )}
 
-      {podeGerenciar && (
+      {grupoAtual && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-black/10 p-3 text-sm dark:border-white/10">
+          <span className="font-medium">Filtros:</span>
+          <select
+            value={filtroResponsavel}
+            onChange={(e) => setFiltroResponsavel(e.target.value)}
+            className="rounded-md border border-black/15 px-2 py-1 dark:border-white/15 dark:bg-transparent"
+          >
+            <option value="">Todos os responsáveis</option>
+            {grupoAtual.membros.map((m) => (
+              <option key={m.user.id} value={m.user.id}>
+                {m.user.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
+            className="rounded-md border border-black/15 px-2 py-1 dark:border-white/15 dark:bg-transparent"
+          >
+            <option value="todos">Qualquer status</option>
+            <option value="atrasado">Atrasadas</option>
+            <option value="em_dia">Em dia</option>
+          </select>
+          <label className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={filtroComPrazo}
+              onChange={(e) => setFiltroComPrazo(e.target.checked)}
+            />
+            Com prazo definido
+          </label>
+          {(filtroResponsavel || filtroStatus !== "todos" || filtroComPrazo) && (
+            <button
+              onClick={() => {
+                setFiltroResponsavel("");
+                setFiltroStatus("todos");
+                setFiltroComPrazo(false);
+              }}
+              className="underline"
+            >
+              limpar filtros
+            </button>
+          )}
+        </div>
+      )}
+
+      {podeGerenciarEstagios && (
         <section className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
           <h2 className="text-sm font-semibold">Adicionar estágio</h2>
           <form onSubmit={handleCreateEstagio} className="flex flex-wrap items-center gap-2">
@@ -279,7 +345,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
         </section>
       )}
 
-      {podeGerenciar && estagios.length === 0 && outrasTurmas.length > 0 && (
+      {podeGerenciarEstagios && estagios.length === 0 && outrasTurmas.length > 0 && (
         <section className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
           <h2 className="text-sm font-semibold">Duplicar estágios de outra turma</h2>
           <form onSubmit={handleDuplicar} className="flex gap-2">
@@ -316,7 +382,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
             {estagios.map((estagio, index) => (
               <ColumnDropZone key={estagio.id} estagioId={estagio.id}>
                 <div className="mb-2 flex items-center justify-between">
-                  {podeGerenciar ? (
+                  {podeGerenciarEstagios ? (
                     <button onClick={() => handleRename(estagio)} className="text-left text-sm font-medium hover:underline">
                       {estagio.nome}
                     </button>
@@ -330,7 +396,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
                   )}
                 </div>
 
-                {podeGerenciar && (
+                {podeGerenciarEstagios && (
                   <div className="mb-3 flex flex-wrap gap-2 text-xs">
                     <button onClick={() => handleMove(index, -1)} disabled={index === 0} className="underline disabled:opacity-30">
                       ← mover
@@ -353,7 +419,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
 
                 <div className="space-y-2">
                   {atividades
-                    .filter((a) => a.estagio_id === estagio.id)
+                    .filter((a) => a.estagio_id === estagio.id && passaNosFiltros(a))
                     .map((atividade) => (
                       <DraggableCard key={atividade.id} atividadeId={atividade.id}>
                         <div
@@ -387,7 +453,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
                     ))}
                 </div>
 
-                {podeGerenciar && grupoSelecionado && (
+                {podeGerenciarAtividades && grupoSelecionado && (
                   <div className="mt-3">
                     {novaAtividadeEstagio === estagio.id ? (
                       <NovaAtividadeForm
@@ -417,7 +483,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
         <CardDetailModal
           atividade={atividadeSelecionada}
           podeEditar={
-            podeGerenciar ||
+            podeGerenciarAtividades ||
             atividadeSelecionada.responsaveis.some((r) => r.id === user.id)
           }
           onClose={() => setAtividadeSelecionada(null)}

@@ -25,6 +25,11 @@ export default function TurmaDetailPage({ params }: { params: Promise<{ id: stri
     if (!loading && !user) router.push("/login");
   }, [loading, user, router]);
 
+  useEffect(() => {
+    // Gestão de grupos e integrantes é exclusiva do professor (RBAC seção 3 do backlog).
+    if (user && user.role !== "professor") router.push(`/turmas/${turmaId}/quadro`);
+  }, [user, turmaId, router]);
+
   async function loadAll() {
     setFetching(true);
     try {
@@ -111,7 +116,7 @@ export default function TurmaDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  if (loading || !user) return null;
+  if (loading || !user || user.role !== "professor") return null;
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-8 px-4 py-10">

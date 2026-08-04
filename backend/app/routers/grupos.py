@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_professor
+from app.core.deps import get_current_user, require_professor
 from app.models.grupo import Grupo, GrupoMembro
+from app.models.turma import Turma
 from app.models.user import User, UserRole
 from app.routers.turmas import get_owned_turma
 from app.schemas.grupo import GrupoCreate, GrupoMembroCreate, GrupoMembroUpdate, GrupoOut
@@ -22,10 +23,27 @@ def _get_owned_grupo(grupo_id: uuid.UUID, current_user: User, db: Session) -> Gr
 
 @router.get("/turmas/{turma_id}/grupos", response_model=list[GrupoOut])
 def list_grupos(
-    turma_id: uuid.UUID, current_user: User = Depends(require_professor), db: Session = Depends(get_db)
+    turma_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    get_owned_turma(turma_id, current_user, db)
-    return db.query(Grupo).filter(Grupo.turma_id == turma_id).order_by(Grupo.nome).all()
+    """RF25: professor vê todos os grupos da turma. RF26: gestor/integrante só o próprio grupo."""
+    turma = db.get(Turma, turma_id)
+    if turma is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada")
+
+    if current_user.role == UserRole.PROFESSOR and turma.professor_id == current_user.id:
+        return db.query(Grupo).filter(Grupo.turma_id == turma_id).order_by(Grupo.nome).all()
+
+    grupos = (
+        db.query(Grupo)
+        .join(GrupoMembro, GrupoMembro.grupo_id == Grupo.id)
+        .filter(Grupo.turma_id == turma_id, GrupoMembro.user_id == current_user.id)
+        .distinct()
+        .order_by(Grupo.nome)
+        .all()
+    )
+    if not grupos:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem acesso a esta turma")
+    return grupos
 
 
 @router.post("/turmas/{turma_id}/grupos", response_model=GrupoOut, status_code=status.HTTP_201_CREATED)

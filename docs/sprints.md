@@ -138,7 +138,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 9 — Visualização, navegação e filtros
+## Sprint 9 — Visualização, navegação e filtros ✅ (concluída)
 **Objetivo:** experiência de uso completa por perfil.
 **RFs:** RF25, RF26, RF27
 
