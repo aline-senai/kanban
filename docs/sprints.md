@@ -125,7 +125,7 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Sprint 8 — Comentários / Chat do card
+## Sprint 8 — Comentários / Chat do card ✅ (concluída)
 **Objetivo:** interação assíncrona no card.
 **RFs:** RF17, RF23
 

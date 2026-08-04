@@ -144,6 +144,14 @@ export type Anexo = {
   versoes: AnexoVersao[];
 };
 
+export type Comentario = {
+  id: string;
+  atividade_id: string;
+  autor: User;
+  texto: string;
+  created_at: string;
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
@@ -229,6 +237,13 @@ export const api = {
   },
   downloadAnexoVersao: (versaoId: string, nomeArquivo: string) =>
     downloadFile(`/anexo-versoes/${versaoId}/download`, nomeArquivo),
+
+  listComentarios: (atividadeId: string) => request<Comentario[]>(`/atividades/${atividadeId}/comentarios`),
+  createComentario: (atividadeId: string, texto: string) =>
+    request<Comentario>(`/atividades/${atividadeId}/comentarios`, {
+      method: "POST",
+      body: JSON.stringify({ texto }),
+    }),
 };
 
 export { ApiError };

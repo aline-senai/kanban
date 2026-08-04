@@ -19,6 +19,7 @@ import {
   type Anexo,
   type Atividade,
   type ChecklistItem,
+  type Comentario,
   type Estagio,
   type Grupo,
   type Turma,
@@ -443,6 +444,10 @@ function CardDetailModal({
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  const [comentarios, setComentarios] = useState<Comentario[]>([]);
+  const [novoComentario, setNovoComentario] = useState("");
+  const [enviandoComentario, setEnviandoComentario] = useState(false);
+
   useEffect(() => {
     api
       .listChecklist(atividade.id)
@@ -453,7 +458,27 @@ function CardDetailModal({
       .listAnexos(atividade.id)
       .then(setAnexos)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar anexos"));
+    api
+      .listComentarios(atividade.id)
+      .then(setComentarios)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar comentários"));
   }, [atividade.id]);
+
+  async function handleAddComentario(e: React.FormEvent) {
+    e.preventDefault();
+    if (!novoComentario.trim()) return;
+    setEnviandoComentario(true);
+    setError(null);
+    try {
+      const comentario = await api.createComentario(atividade.id, novoComentario.trim());
+      setComentarios((prev) => [...prev, comentario]);
+      setNovoComentario("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao enviar comentário");
+    } finally {
+      setEnviandoComentario(false);
+    }
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -621,6 +646,43 @@ function CardDetailModal({
             {uploading ? "Enviando..." : "+ Anexar arquivo"}
             <input type="file" className="hidden" disabled={uploading} onChange={handleUpload} />
           </label>
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Comentários</h3>
+          {comentarios.length === 0 ? (
+            <p className="text-sm text-black/60 dark:text-white/60">Nenhum comentário ainda.</p>
+          ) : (
+            <ul className="max-h-48 space-y-2 overflow-y-auto">
+              {comentarios.map((c) => (
+                <li key={c.id} className="text-sm">
+                  <p>
+                    <span className="font-medium">{c.autor.name}</span>{" "}
+                    <span className="text-xs text-black/60 dark:text-white/60">
+                      {new Date(c.created_at).toLocaleString("pt-BR")}
+                    </span>
+                  </p>
+                  <p className="whitespace-pre-wrap">{c.texto}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form onSubmit={handleAddComentario} className="flex gap-2 pt-1">
+            <input
+              value={novoComentario}
+              onChange={(e) => setNovoComentario(e.target.value)}
+              placeholder="Escreva um comentário..."
+              className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+            />
+            <button
+              type="submit"
+              disabled={enviandoComentario || !novoComentario.trim()}
+              className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
+            >
+              Enviar
+            </button>
+          </form>
         </div>
       </div>
     </div>
