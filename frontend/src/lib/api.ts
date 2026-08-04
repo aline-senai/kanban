@@ -186,6 +186,11 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/auth/me"),
+  changePassword: (senhaAtual: string, senhaNova: string) =>
+    request<void>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ senha_atual: senhaAtual, senha_nova: senhaNova }),
+    }),
   listTurmas: () => request<Turma[]>("/turmas"),
   createTurma: (nome: string) =>
     request<Turma>("/turmas", { method: "POST", body: JSON.stringify({ nome }) }),

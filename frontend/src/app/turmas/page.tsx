@@ -64,9 +64,14 @@ export default function TurmasPage() {
     <div className="mx-auto w-full max-w-2xl flex-1 space-y-8 px-4 py-10">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">{isProfessor ? "Minhas turmas" : "Meus quadros"}</h1>
-        <button onClick={logout} className="text-sm underline">
-          Sair
-        </button>
+        <div className="flex items-center gap-4">
+          <Link href="/conta" className="text-sm underline">
+            Minha conta
+          </Link>
+          <button onClick={logout} className="text-sm underline">
+            Sair
+          </button>
+        </div>
       </div>
 
       {isProfessor && (

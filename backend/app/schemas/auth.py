@@ -1,8 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import UserOut
 
-__all__ = ["LoginRequest", "Token", "UserOut"]
+__all__ = ["LoginRequest", "Token", "UserOut", "ChangePasswordRequest"]
 
 
 class LoginRequest(BaseModel):
@@ -13,3 +13,8 @@ class LoginRequest(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ChangePasswordRequest(BaseModel):
+    senha_atual: str
+    senha_nova: str = Field(min_length=8)
