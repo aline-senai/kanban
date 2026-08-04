@@ -11,6 +11,7 @@ from app.models.atividade import Atividade, AtividadeHistorico, AtividadeRespons
 from app.models.estagio import Estagio
 from app.models.grupo import Grupo, GrupoMembro
 from app.models.user import User
+from app.services.notificacoes import notificar_atribuicao
 from app.schemas.atividade import (
     AtividadeCreate,
     AtividadeOut,
@@ -88,6 +89,8 @@ def create_atividade(
     for user_id in payload.responsavel_ids:
         db.add(AtividadeResponsavel(atividade_id=atividade.id, user_id=user_id))
 
+    notificar_atribuicao(db, atividade, payload.responsavel_ids)
+
     db.commit()
     db.refresh(atividade)
     return atividade
@@ -124,9 +127,16 @@ def update_atividade(
 
     if payload.responsavel_ids is not None:
         _validate_responsaveis(atividade.grupo_id, payload.responsavel_ids, db)
+        responsaveis_antes = {
+            r.user_id
+            for r in db.query(AtividadeResponsavel).filter(AtividadeResponsavel.atividade_id == atividade.id).all()
+        }
         db.query(AtividadeResponsavel).filter(AtividadeResponsavel.atividade_id == atividade.id).delete()
         for user_id in payload.responsavel_ids:
             db.add(AtividadeResponsavel(atividade_id=atividade.id, user_id=user_id))
+
+        novos_responsaveis = list(set(payload.responsavel_ids) - responsaveis_antes)
+        notificar_atribuicao(db, atividade, novos_responsaveis)
 
     db.commit()
     db.refresh(atividade)

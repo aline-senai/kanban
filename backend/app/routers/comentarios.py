@@ -10,6 +10,7 @@ from app.models.atividade import Atividade
 from app.models.comentario import Comentario
 from app.models.user import User
 from app.schemas.comentario import ComentarioCreate, ComentarioOut
+from app.services.notificacoes import notificar_comentario
 
 router = APIRouter(tags=["comentarios"])
 
@@ -52,8 +53,12 @@ def create_comentario(
     if not payload.texto.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comentário não pode ser vazio")
 
-    comentario = Comentario(atividade_id=atividade_id, autor_id=current_user.id, texto=payload.texto.strip())
+    texto = payload.texto.strip()
+    comentario = Comentario(atividade_id=atividade_id, autor_id=current_user.id, texto=texto)
     db.add(comentario)
+
+    notificar_comentario(db, atividade, current_user, texto)
+
     db.commit()
     db.refresh(comentario)
     return comentario

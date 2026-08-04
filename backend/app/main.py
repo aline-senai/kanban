@@ -1,7 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import anexos, atividades, auth, checklist, comentarios, estagios, grupos, health, turmas, users
+from app.routers import (
+    anexos,
+    atividades,
+    auth,
+    checklist,
+    comentarios,
+    estagios,
+    grupos,
+    health,
+    notificacoes,
+    relatorios,
+    turmas,
+    users,
+)
 
 app = FastAPI(title="Kanban Turmas API")
 
@@ -23,3 +36,5 @@ app.include_router(atividades.router)
 app.include_router(checklist.router)
 app.include_router(anexos.router)
 app.include_router(comentarios.router)
+app.include_router(notificacoes.router)
+app.include_router(relatorios.router)

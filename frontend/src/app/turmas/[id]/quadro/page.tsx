@@ -734,20 +734,25 @@ function CardDetailModal({
             </ul>
           )}
 
-          <form onSubmit={handleAddComentario} className="flex gap-2 pt-1">
-            <input
-              value={novoComentario}
-              onChange={(e) => setNovoComentario(e.target.value)}
-              placeholder="Escreva um comentário..."
-              className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
-            />
-            <button
-              type="submit"
-              disabled={enviandoComentario || !novoComentario.trim()}
-              className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
-            >
-              Enviar
-            </button>
+          <form onSubmit={handleAddComentario} className="space-y-1 pt-1">
+            <p className="text-xs text-black/50 dark:text-white/50">
+              Use @Nome para mencionar e notificar um integrante do grupo.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={novoComentario}
+                onChange={(e) => setNovoComentario(e.target.value)}
+                placeholder="Escreva um comentário... (ex: @Maria pode revisar?)"
+                className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+              />
+              <button
+                type="submit"
+                disabled={enviandoComentario || !novoComentario.trim()}
+                className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
+              >
+                Enviar
+              </button>
+            </div>
           </form>
         </div>
       </div>

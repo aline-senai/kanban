@@ -152,11 +152,35 @@ Duração de sprint assumida: **2 semanas** (ajustável). Cada sprint lista obje
 
 ---
 
-## Backlog pós-MVP (não planejado em sprint ainda)
-Fora do escopo do MVP (seção 5 do backlog), para priorizar depois que o core estiver validado em sala de aula:
-- **RF24** — Menções (@aluno) nos comentários
-- **RF28–RF30** — Notificações (atribuição, prazo próximo, novo comentário)
-- **RF31–RF33** — Dashboard de conclusão, relatório de atrasados, exportação PDF/Excel
+## Sprint 10 — Notificações ✅ (concluída)
+**Objetivo:** usuários são avisados de eventos relevantes sem precisar ficar checando o quadro.
+**RFs:** RF24, RF28, RF29, RF30
+
+**Backend**
+- Modelo `Notificacao` (destinatário, tipo, atividade relacionada, texto, lida, created_at)
+- Gerar notificação ao atribuir responsável a uma atividade (RF28)
+- Gerar notificação de menção (`@Nome`) em comentários (RF24)
+- Gerar notificação de novo comentário para responsáveis/criador (RF30)
+- Gerar notificação de prazo próximo do vencimento (RF29) — como não há infraestrutura de cron neste MVP, é calculada de forma preguiçosa (lazy) a cada consulta de notificações, com deduplicação
+- Endpoints para listar e marcar como lida
+
+**Frontend**
+- Sino de notificações no cabeçalho com contagem de não lidas e lista
+
+---
+
+## Sprint 11 — Relatórios ✅ (concluída)
+**Objetivo:** professor acompanha o progresso das turmas sem abrir card por card.
+**RFs:** RF31, RF32, RF33
+
+**Backend**
+- Endpoint de % de conclusão por grupo/turma (RF31)
+- Endpoint de atividades atrasadas por grupo (RF32)
+- Exportação em CSV, compatível com Excel (RF33)
+
+**Frontend**
+- Tela de relatórios por turma (só professor): conclusão por grupo e lista de atrasadas
+- Botão de exportar CSV e opção de imprimir/exportar PDF via impressão do navegador
 
 ---
 

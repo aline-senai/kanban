@@ -152,6 +152,33 @@ export type Comentario = {
   created_at: string;
 };
 
+export type Notificacao = {
+  id: string;
+  atividade_id: string | null;
+  tipo: "atribuicao" | "mencao" | "comentario" | "prazo_proximo";
+  texto: string;
+  lida: boolean;
+  created_at: string;
+};
+
+export type ConclusaoGrupo = {
+  grupo_id: string;
+  grupo_nome: string;
+  total_atividades: number;
+  concluidas: number;
+  percentual: number;
+};
+
+export type AtividadeAtrasada = {
+  atividade_id: string;
+  nome: string;
+  grupo_id: string;
+  grupo_nome: string;
+  estagio_nome: string;
+  data_fim: string;
+  responsaveis: string[];
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
@@ -244,6 +271,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ texto }),
     }),
+
+  listNotificacoes: () => request<Notificacao[]>("/notificacoes"),
+  marcarNotificacaoLida: (id: string) => request<Notificacao>(`/notificacoes/${id}`, { method: "PATCH" }),
+  marcarTodasNotificacoesLidas: () =>
+    request<void>("/notificacoes/marcar-todas-lidas", { method: "POST" }),
+
+  relatorioConclusao: (turmaId: string) =>
+    request<ConclusaoGrupo[]>(`/turmas/${turmaId}/relatorio/conclusao`),
+  relatorioAtrasadas: (turmaId: string) =>
+    request<AtividadeAtrasada[]>(`/turmas/${turmaId}/relatorio/atrasadas`),
+  exportarAtrasadasCsv: (turmaId: string, nomeArquivo: string) =>
+    downloadFile(`/turmas/${turmaId}/relatorio/atrasadas.csv`, nomeArquivo),
 };
 
 export { ApiError };

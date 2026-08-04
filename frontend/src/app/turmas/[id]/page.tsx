@@ -124,9 +124,14 @@ export default function TurmaDetailPage({ params }: { params: Promise<{ id: stri
         <Link href="/turmas" className="text-sm underline">
           ← Minhas turmas
         </Link>
-        <Link href={`/turmas/${turmaId}/quadro`} className="text-sm underline">
-          Quadro Kanban →
-        </Link>
+        <div className="flex gap-4">
+          <Link href={`/turmas/${turmaId}/relatorios`} className="text-sm underline">
+            Relatórios
+          </Link>
+          <Link href={`/turmas/${turmaId}/quadro`} className="text-sm underline">
+            Quadro Kanban →
+          </Link>
+        </div>
       </div>
 
       <h1 className="text-xl font-semibold">Grupos da turma</h1>
