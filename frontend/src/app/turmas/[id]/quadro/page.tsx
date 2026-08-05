@@ -21,6 +21,7 @@ import {
   type ChecklistItem,
   type Comentario,
   type Estagio,
+  type HistoricoEntry,
   type Grupo,
   type Turma,
 } from "@/lib/api";
@@ -514,6 +515,8 @@ function CardDetailModal({
   const [novoComentario, setNovoComentario] = useState("");
   const [enviandoComentario, setEnviandoComentario] = useState(false);
 
+  const [historico, setHistorico] = useState<HistoricoEntry[]>([]);
+
   useEffect(() => {
     api
       .listChecklist(atividade.id)
@@ -528,7 +531,38 @@ function CardDetailModal({
       .listComentarios(atividade.id)
       .then(setComentarios)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar comentários"));
+    api
+      .listHistorico(atividade.id)
+      .then(setHistorico)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar histórico"));
   }, [atividade.id]);
+
+  function formatarDataHora(iso: string | null) {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("pt-BR");
+  }
+
+  // Monta a linha do tempo de entrada/saída por estágio a partir do histórico de movimentações.
+  const timelineEstagios = (() => {
+    if (historico.length === 0) {
+      return [{ estagio: "estágio atual", entrada: atividade.data_criacao, saida: null as string | null }];
+    }
+    const linhas: { estagio: string; entrada: string; saida: string | null }[] = [];
+    const primeiro = historico[0];
+    linhas.push({
+      estagio: primeiro.estagio_de_nome ?? "estágio inicial",
+      entrada: atividade.data_criacao,
+      saida: primeiro.created_at,
+    });
+    historico.forEach((entrada, i) => {
+      linhas.push({
+        estagio: entrada.estagio_para_nome,
+        entrada: entrada.created_at,
+        saida: i + 1 < historico.length ? historico[i + 1].created_at : null,
+      });
+    });
+    return linhas;
+  })();
 
   async function handleAddComentario(e: React.FormEvent) {
     e.preventDefault();
@@ -614,7 +648,7 @@ function CardDetailModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md space-y-4 rounded-lg bg-background p-6 shadow-lg"
+        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
       >
         <div className="flex items-start justify-between gap-2">
           <h2 className="text-lg font-semibold">{atividade.nome}</h2>
@@ -630,6 +664,43 @@ function CardDetailModal({
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="space-y-1 rounded-md border border-black/10 p-2 text-sm dark:border-white/10">
+          <p>
+            <span className="text-black/60 dark:text-white/60">Criado em:</span>{" "}
+            {formatarDataHora(atividade.data_criacao)}
+          </p>
+          <p>
+            <span className="text-black/60 dark:text-white/60">Previsão de finalização:</span>{" "}
+            {formatarDataHora(atividade.data_fim)}
+          </p>
+          <p>
+            <span className="text-black/60 dark:text-white/60">Entrada no estágio atual:</span>{" "}
+            {formatarDataHora(atividade.data_inicio_estagio)}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Histórico de estágios</h3>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-black/10 text-left dark:border-white/10">
+                <th className="py-1 font-medium">Estágio</th>
+                <th className="py-1 font-medium">Entrada</th>
+                <th className="py-1 font-medium">Saída</th>
+              </tr>
+            </thead>
+            <tbody>
+              {timelineEstagios.map((linha, i) => (
+                <tr key={i} className="border-b border-black/5 dark:border-white/5">
+                  <td className="py-1">{linha.estagio}</td>
+                  <td className="py-1">{formatarDataHora(linha.entrada)}</td>
+                  <td className="py-1">{linha.saida ? formatarDataHora(linha.saida) : "ainda no estágio"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">Checklist</h3>

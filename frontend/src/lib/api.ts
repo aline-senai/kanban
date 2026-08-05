@@ -111,6 +111,18 @@ export type Atividade = {
   responsaveis: User[];
 };
 
+export type HistoricoEntry = {
+  id: string;
+  estagio_de_id: string | null;
+  estagio_de_nome: string | null;
+  estagio_para_id: string;
+  estagio_para_nome: string;
+  user_id: string;
+  user_name: string;
+  created_at: string;
+  duracao_segundos: number;
+};
+
 export type AtividadeCreateInput = {
   estagio_id: string;
   nome: string;
@@ -248,6 +260,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ estagio_id: estagioId }),
     }),
+  listHistorico: (atividadeId: string) => request<HistoricoEntry[]>(`/atividades/${atividadeId}/historico`),
 
   listChecklist: (atividadeId: string) => request<ChecklistItem[]>(`/atividades/${atividadeId}/checklist`),
   createChecklistItem: (atividadeId: string, texto: string) =>
