@@ -7,6 +7,12 @@ from app.schemas.user import UserOut
 
 class GrupoCreate(BaseModel):
     nome: str
+    descricao: str | None = None
+
+
+class GrupoUpdate(BaseModel):
+    nome: str | None = None
+    descricao: str | None = None
 
 
 class GrupoMembroCreate(BaseModel):
@@ -31,6 +37,7 @@ class GrupoOut(BaseModel):
     id: uuid.UUID
     turma_id: uuid.UUID
     nome: str
+    descricao: str | None = None
     membros: list[GrupoMembroOut] = []
 
     class Config:

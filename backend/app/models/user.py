@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Column, Enum, String
+from sqlalchemy import Boolean, Column, Enum, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -20,3 +20,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.ALUNO)
+
+    notif_atribuicao = Column(Boolean, nullable=False, default=True)
+    notif_prazo = Column(Boolean, nullable=False, default=True)
+    notif_comentario = Column(Boolean, nullable=False, default=False)

@@ -1,10 +1,17 @@
+import enum
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+class Prioridade(str, enum.Enum):
+    BAIXA = "baixa"
+    MEDIA = "media"
+    ALTA = "alta"
 
 
 class Atividade(Base):
@@ -15,8 +22,11 @@ class Atividade(Base):
     estagio_id = Column(UUID(as_uuid=True), ForeignKey("estagios.id"), nullable=False)
     criador_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
+    numero = Column(Integer, nullable=False)
     nome = Column(String, nullable=False)
     texto = Column(Text, nullable=True)
+    prioridade = Column(Enum(Prioridade), nullable=False, default=Prioridade.MEDIA)
+    estimativa_horas = Column(Integer, nullable=True)
 
     data_criacao = Column(DateTime(timezone=True), server_default=func.now())
     data_inicio = Column(DateTime(timezone=True), nullable=True)

@@ -53,12 +53,11 @@ export default function RelatoriosPage({ params }: { params: Promise<{ id: strin
   if (loading || !user || user.role !== "professor") return null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 space-y-8 px-4 py-10 print:max-w-full">
+    <div className="space-y-8 print:max-w-full">
       <div className="flex items-center justify-between print:hidden">
-        <Link href={`/turmas/${turmaId}`} className="text-sm underline">
-          ← Grupos da turma
+        <Link href={`/turmas/${turmaId}/equipe`} className="text-sm underline">
+          ← Equipe e grupos
         </Link>
-        <h1 className="text-xl font-semibold">Relatórios</h1>
         <span />
       </div>
 

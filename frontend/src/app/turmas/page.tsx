@@ -117,7 +117,7 @@ export default function TurmasPage() {
           {turmas.map((turma) => (
             <li key={turma.id} className="flex items-center justify-between py-3">
               <Link
-                href={isProfessor ? `/turmas/${turma.id}` : `/turmas/${turma.id}/quadro`}
+                href={`/turmas/${turma.id}/quadro`}
                 className={turma.arquivada ? "line-through opacity-60" : "hover:underline"}
               >
                 {turma.nome}

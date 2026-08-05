@@ -68,7 +68,7 @@ export function NotificationsBell() {
   const naoLidas = notificacoes.filter((n) => !n.lida).length;
 
   return (
-    <div ref={containerRef} className="fixed top-4 right-4 z-30">
+    <div ref={containerRef} className="relative">
       <button
         onClick={() => setAberto((prev) => !prev)}
         className="relative rounded-full border border-black/15 bg-background px-3 py-1.5 text-sm dark:border-white/15"
@@ -83,7 +83,7 @@ export function NotificationsBell() {
       </button>
 
       {aberto && (
-        <div className="mt-2 w-80 rounded-lg border border-black/10 bg-background p-3 shadow-lg dark:border-white/10">
+        <div className="absolute right-0 top-full z-30 mt-2 w-80 rounded-lg border border-black/10 bg-background p-3 shadow-lg dark:border-white/10">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Notificações</h3>
             {naoLidas > 0 && (

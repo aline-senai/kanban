@@ -65,6 +65,9 @@ export type User = {
   name: string;
   email: string;
   role: "professor" | "aluno";
+  notif_atribuicao: boolean;
+  notif_prazo: boolean;
+  notif_comentario: boolean;
 };
 
 export type Turma = {
@@ -73,6 +76,10 @@ export type Turma = {
   professor_id: string;
   arquivada: boolean;
   created_at: string;
+  cronograma_inicio: string | null;
+  duracao_sprint_semanas: number;
+  total_sprints: number;
+  sprint_atual: number;
 };
 
 export type GrupoMembro = {
@@ -85,6 +92,7 @@ export type Grupo = {
   id: string;
   turma_id: string;
   nome: string;
+  descricao: string | null;
   membros: GrupoMembro[];
 };
 
@@ -97,18 +105,24 @@ export type Estagio = {
   is_conclusao: boolean;
 };
 
+export type Prioridade = "baixa" | "media" | "alta";
+
 export type Atividade = {
   id: string;
   grupo_id: string;
   estagio_id: string;
   criador_id: string;
+  numero: number;
   nome: string;
   texto: string | null;
+  prioridade: Prioridade;
+  estimativa_horas: number | null;
   data_criacao: string;
   data_inicio: string | null;
   data_inicio_estagio: string;
   data_fim: string | null;
   responsaveis: User[];
+  criador: User;
 };
 
 export type HistoricoEntry = {
@@ -130,6 +144,8 @@ export type AtividadeCreateInput = {
   data_inicio?: string | null;
   data_fim?: string | null;
   responsavel_ids?: string[];
+  prioridade?: Prioridade;
+  estimativa_horas?: number | null;
 };
 
 export type ChecklistItem = {
@@ -198,6 +214,9 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<User>("/auth/me"),
+  updateMe: (
+    payload: Partial<Pick<User, "name" | "email" | "notif_atribuicao" | "notif_prazo" | "notif_comentario">>
+  ) => request<User>("/auth/me", { method: "PATCH", body: JSON.stringify(payload) }),
   changePassword: (senhaAtual: string, senhaNova: string) =>
     request<void>("/auth/change-password", {
       method: "POST",
@@ -206,16 +225,28 @@ export const api = {
   listTurmas: () => request<Turma[]>("/turmas"),
   createTurma: (nome: string) =>
     request<Turma>("/turmas", { method: "POST", body: JSON.stringify({ nome }) }),
-  updateTurma: (id: string, payload: Partial<Pick<Turma, "nome" | "arquivada">>) =>
-    request<Turma>(`/turmas/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  updateTurma: (
+    id: string,
+    payload: Partial<
+      Pick<
+        Turma,
+        "nome" | "arquivada" | "cronograma_inicio" | "duracao_sprint_semanas" | "total_sprints" | "sprint_atual"
+      >
+    >
+  ) => request<Turma>(`/turmas/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   listAlunos: () => request<User[]>("/users"),
   createAluno: (name: string, email: string, password: string) =>
     request<User>("/users", { method: "POST", body: JSON.stringify({ name, email, password }) }),
 
   listGrupos: (turmaId: string) => request<Grupo[]>(`/turmas/${turmaId}/grupos`),
-  createGrupo: (turmaId: string, nome: string) =>
-    request<Grupo>(`/turmas/${turmaId}/grupos`, { method: "POST", body: JSON.stringify({ nome }) }),
+  createGrupo: (turmaId: string, nome: string, descricao?: string) =>
+    request<Grupo>(`/turmas/${turmaId}/grupos`, {
+      method: "POST",
+      body: JSON.stringify({ nome, descricao }),
+    }),
+  updateGrupo: (grupoId: string, payload: Partial<Pick<Grupo, "nome" | "descricao">>) =>
+    request<Grupo>(`/grupos/${grupoId}`, { method: "PATCH", body: JSON.stringify(payload) }),
   addMembro: (grupoId: string, userId: string, isGestor: boolean) =>
     request<Grupo>(`/grupos/${grupoId}/membros`, {
       method: "POST",

@@ -13,6 +13,7 @@ class Grupo(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     turma_id = Column(UUID(as_uuid=True), ForeignKey("turmas.id"), nullable=False)
     nome = Column(String, nullable=False)
+    descricao = Column(String, nullable=True)
 
     turma = relationship("Turma", back_populates="grupos")
     membros = relationship("GrupoMembro", back_populates="grupo", cascade="all, delete-orphan")

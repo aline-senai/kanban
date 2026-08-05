@@ -62,6 +62,14 @@ def update_turma(
         turma.nome = payload.nome
     if payload.arquivada is not None:
         turma.arquivada = payload.arquivada
+    if payload.cronograma_inicio is not None:
+        turma.cronograma_inicio = payload.cronograma_inicio
+    if payload.duracao_sprint_semanas is not None:
+        turma.duracao_sprint_semanas = payload.duracao_sprint_semanas
+    if payload.total_sprints is not None:
+        turma.total_sprints = payload.total_sprints
+    if payload.sprint_atual is not None:
+        turma.sprint_atual = payload.sprint_atual
     db.commit()
     db.refresh(turma)
     return turma
