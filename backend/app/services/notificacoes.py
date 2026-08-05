@@ -11,7 +11,14 @@ from app.models.user import User
 
 def notificar_atribuicao(db: Session, atividade: Atividade, responsavel_ids: list[uuid.UUID]) -> None:
     """RF28: avisa quem foi atribuído como responsável por uma atividade."""
+    if not responsavel_ids:
+        return
+    usuarios = {
+        u.id: u for u in db.query(User).filter(User.id.in_(responsavel_ids), User.notif_atribuicao.is_(True)).all()
+    }
     for user_id in responsavel_ids:
+        if user_id not in usuarios:
+            continue
         db.add(
             Notificacao(
                 user_id=user_id,
@@ -49,6 +56,13 @@ def notificar_comentario(db: Session, atividade: Atividade, autor: User, texto: 
 
     interessados = {r.user_id for r in atividade.responsaveis} | {atividade.criador_id}
     destinatarios_comentario = interessados - {autor.id} - mencionados
+    if destinatarios_comentario:
+        destinatarios_comentario = {
+            u.id
+            for u in db.query(User)
+            .filter(User.id.in_(destinatarios_comentario), User.notif_comentario.is_(True))
+            .all()
+        }
 
     for user_id in destinatarios_comentario:
         db.add(
@@ -67,6 +81,9 @@ def gerar_notificacoes_prazo_proximo(db: Session, user: User, janela_horas: int 
     Sem infraestrutura de cron neste MVP, a checagem roda de forma preguiçosa (lazy)
     sempre que o usuário consulta suas notificações.
     """
+    if not user.notif_prazo:
+        return
+
     agora = datetime.now(timezone.utc)
     limite = agora + timedelta(hours=janela_horas)
 

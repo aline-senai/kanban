@@ -1,8 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   DndContext,
   type DragEndEvent,
@@ -12,839 +10,317 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { useAuth } from "@/lib/auth-context";
-import {
-  api,
-  ApiError,
-  type Anexo,
-  type Atividade,
-  type ChecklistItem,
-  type Comentario,
-  type Estagio,
-  type HistoricoEntry,
-  type Grupo,
-  type Turma,
-} from "@/lib/api";
+import { useTurmaBoard } from "@/lib/turma-board-context";
+import { useViewAs } from "@/lib/view-as-context";
+import { podeGerenciarAtividades } from "@/lib/permissions";
+import { Avatar } from "@/components/Avatar";
+import { CardDetailModal } from "@/components/CardDetailModal";
+import { getEstagioFinalId, isAtrasada as calcIsAtrasada } from "@/lib/atividade-status";
+import { ApiError, type Atividade, type Estagio, type Grupo, type Prioridade } from "@/lib/api";
 
-export default function QuadroPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: turmaId } = use(params);
-  const { user, loading } = useAuth();
-  const router = useRouter();
+const ESTAGIO_CORES_DEFAULT = ["bg-slate-400", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-emerald-500"];
+const PRIORIDADE_COR: Record<Prioridade, string> = {
+  baixa: "bg-slate-400",
+  media: "bg-amber-500",
+  alta: "bg-red-500",
+};
 
-  const [estagios, setEstagios] = useState<Estagio[]>([]);
-  const [outrasTurmas, setOutrasTurmas] = useState<Turma[]>([]);
-  const [grupos, setGrupos] = useState<Grupo[]>([]);
-  const [grupoSelecionado, setGrupoSelecionado] = useState<string>("");
-  const [atividades, setAtividades] = useState<Atividade[]>([]);
-  const [fetching, setFetching] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type FiltroPrazo = "todos" | "atrasado" | "em_dia" | "sem_prazo";
 
-  const [novoNome, setNovoNome] = useState("");
-  const [novoIsConclusao, setNovoIsConclusao] = useState(false);
-  const [origemDuplicar, setOrigemDuplicar] = useState("");
-  const [novaAtividadeEstagio, setNovaAtividadeEstagio] = useState<string | null>(null);
-  const [atividadeSelecionada, setAtividadeSelecionada] = useState<Atividade | null>(null);
+export default function QuadroPage() {
+  const { estagios, grupos, atividades, moverAtividade, createAtividade, setError } = useTurmaBoard();
+  const { effectiveRole } = useViewAs();
 
+  const [busca, setBusca] = useState("");
   const [filtroResponsavel, setFiltroResponsavel] = useState("");
-  const [filtroStatus, setFiltroStatus] = useState<"todos" | "atrasado" | "em_dia">("todos");
-  const [filtroComPrazo, setFiltroComPrazo] = useState(false);
+  const [filtroPrazo, setFiltroPrazo] = useState<FiltroPrazo>("todos");
+  const [filtroGrupo, setFiltroGrupo] = useState("");
+  const [modo, setModo] = useState<"colunas" | "raias">("colunas");
+  const [atividadeSelecionada, setAtividadeSelecionada] = useState<string | null>(null);
+  const [novaAtividadeEstagio, setNovaAtividadeEstagio] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const podeGerenciar = podeGerenciarAtividades(effectiveRole);
 
-  useEffect(() => {
-    if (!loading && !user) router.push("/login");
-  }, [loading, user, router]);
+  const estagioFinalId = getEstagioFinalId(estagios);
 
-  async function loadAll() {
-    setFetching(true);
-    try {
-      const [estagiosData, turmasData, gruposData] = await Promise.all([
-        api.listEstagios(turmaId),
-        api.listTurmas(),
-        api.listGrupos(turmaId),
-      ]);
-      setEstagios(estagiosData);
-      setOutrasTurmas(turmasData.filter((t) => t.id !== turmaId));
-      setGrupos(gruposData);
-      setGrupoSelecionado((prev) => prev || gruposData[0]?.id || "");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao carregar o quadro");
-    } finally {
-      setFetching(false);
-    }
+  function isAtrasada(atividade: Atividade) {
+    return calcIsAtrasada(atividade, estagioFinalId);
   }
 
-  useEffect(() => {
-    if (!user) return;
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, turmaId]);
-
-  useEffect(() => {
-    if (!grupoSelecionado) {
-      setAtividades([]);
-      return;
-    }
-    api
-      .listAtividades(grupoSelecionado)
-      .then(setAtividades)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar atividades"));
-  }, [grupoSelecionado]);
-
-  async function handleCreateEstagio(e: React.FormEvent) {
-    e.preventDefault();
-    if (!novoNome.trim()) return;
-    setError(null);
-    try {
-      const estagio = await api.createEstagio(turmaId, novoNome.trim(), novoIsConclusao);
-      setEstagios((prev) => [...prev, estagio]);
-      setNovoNome("");
-      setNovoIsConclusao(false);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao criar estágio");
-    }
+  function passaNosFiltros(atividade: Atividade) {
+    if (busca && !atividade.nome.toLowerCase().includes(busca.toLowerCase())) return false;
+    if (filtroResponsavel && !atividade.responsaveis.some((r) => r.id === filtroResponsavel)) return false;
+    if (filtroGrupo && atividade.grupo_id !== filtroGrupo) return false;
+    if (filtroPrazo === "sem_prazo" && atividade.data_fim) return false;
+    if (filtroPrazo === "atrasado" && !isAtrasada(atividade)) return false;
+    if (filtroPrazo === "em_dia" && isAtrasada(atividade)) return false;
+    return true;
   }
 
-  async function handleRename(estagio: Estagio) {
-    const novoNomeInput = window.prompt("Novo nome do estágio", estagio.nome);
-    if (!novoNomeInput || !novoNomeInput.trim() || novoNomeInput === estagio.nome) return;
-    setError(null);
-    try {
-      const updated = await api.updateEstagio(estagio.id, { nome: novoNomeInput.trim() });
-      setEstagios((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao renomear estágio");
-    }
-  }
-
-  async function handleToggleConclusao(estagio: Estagio) {
-    setError(null);
-    try {
-      const updated = await api.updateEstagio(estagio.id, { is_conclusao: !estagio.is_conclusao });
-      setEstagios((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao atualizar estágio");
-    }
-  }
-
-  async function handleDelete(estagio: Estagio) {
-    if (!window.confirm(`Remover o estágio "${estagio.nome}"?`)) return;
-    setError(null);
-    try {
-      await api.deleteEstagio(estagio.id);
-      setEstagios((prev) => prev.filter((e) => e.id !== estagio.id));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao remover estágio");
-    }
-  }
-
-  async function handleMove(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= estagios.length) return;
-    const reordered = [...estagios];
-    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-    setEstagios(reordered);
-    setError(null);
-    try {
-      const updated = await api.reorderEstagios(
-        turmaId,
-        reordered.map((e) => e.id)
-      );
-      setEstagios(updated);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao reordenar estágios");
-      loadAll();
-    }
-  }
-
-  async function handleDuplicar(e: React.FormEvent) {
-    e.preventDefault();
-    if (!origemDuplicar) return;
-    setError(null);
-    try {
-      const estagiosDuplicados = await api.duplicarEstagios(turmaId, origemDuplicar);
-      setEstagios(estagiosDuplicados);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao duplicar estágios");
-    }
-  }
-
-  async function handleCreateAtividade(estagioId: string, nome: string, responsavelIds: string[]) {
-    if (!grupoSelecionado || !nome.trim()) return;
-    setError(null);
-    try {
-      const atividade = await api.createAtividade(grupoSelecionado, {
-        estagio_id: estagioId,
-        nome: nome.trim(),
-        responsavel_ids: responsavelIds,
-      });
-      setAtividades((prev) => [...prev, atividade]);
-      setNovaAtividadeEstagio(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao criar atividade");
-    }
-  }
+  const atividadesFiltradas = atividades.filter(passaNosFiltros);
+  const membrosUnicos = Array.from(
+    new Map(grupos.flatMap((g) => g.membros.map((m) => [m.user.id, m.user] as const))).values()
+  );
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
     const atividadeId = String(active.id);
     const novoEstagioId = String(over.id);
-
     const atividade = atividades.find((a) => a.id === atividadeId);
     if (!atividade || atividade.estagio_id === novoEstagioId) return;
-
-    const anterior = atividade.estagio_id;
-    setAtividades((prev) =>
-      prev.map((a) => (a.id === atividadeId ? { ...a, estagio_id: novoEstagioId } : a))
-    );
-    setError(null);
     try {
-      await api.moverAtividade(atividadeId, novoEstagioId);
+      await moverAtividade(atividadeId, novoEstagioId);
     } catch (err) {
-      setAtividades((prev) =>
-        prev.map((a) => (a.id === atividadeId ? { ...a, estagio_id: anterior } : a))
-      );
       setError(err instanceof ApiError ? err.message : "Erro ao mover atividade");
     }
   }
 
-  if (loading || !user) return null;
-
-  const grupoAtual = grupos.find((g) => g.id === grupoSelecionado);
-  // RBAC (backlog seção 3): estágios do quadro são exclusivos do professor;
-  // criar/atribuir atividades é permitido a professor e gestor do grupo.
-  const podeGerenciarEstagios = user.role === "professor";
-  const podeGerenciarAtividades =
-    podeGerenciarEstagios ||
-    grupoAtual?.membros.some((m) => m.user.id === user.id && m.is_gestor) ||
-    false;
-
-  const maxOrdem = estagios.length > 0 ? Math.max(...estagios.map((e) => e.ordem)) : 0;
-  const estagioFinalId = estagios.find((e) => e.ordem === maxOrdem)?.id;
-  const hoje = new Date();
-
-  function isAtrasada(atividade: Atividade) {
-    if (!atividade.data_fim) return false;
-    if (atividade.estagio_id === estagioFinalId) return false;
-    return new Date(atividade.data_fim) < hoje;
+  if (estagios.length === 0) {
+    return (
+      <p className="text-sm text-black/60 dark:text-white/60">
+        Nenhum estágio criado ainda. Configure em &ldquo;Equipe e grupos&rdquo;.
+      </p>
+    );
   }
 
-  function passaNosFiltros(atividade: Atividade) {
-    if (filtroResponsavel && !atividade.responsaveis.some((r) => r.id === filtroResponsavel)) return false;
-    if (filtroComPrazo && !atividade.data_fim) return false;
-    if (filtroStatus === "atrasado" && !isAtrasada(atividade)) return false;
-    if (filtroStatus === "em_dia" && isAtrasada(atividade)) return false;
-    return true;
-  }
-
-  const isProfessor = user.role === "professor";
+  const gruposParaRaias = filtroGrupo ? grupos.filter((g) => g.id === filtroGrupo) : grupos;
+  const grupoUnico = grupos.length === 1 ? grupos[0] : undefined;
+  const grupoParaCriar = grupos.find((g) => g.id === filtroGrupo) ?? grupoUnico;
+  const grupoNomePorId = Object.fromEntries(grupos.map((g) => [g.id, g.nome]));
 
   return (
-    <div className="mx-auto w-full max-w-5xl flex-1 space-y-8 px-4 py-10">
-      <div className="flex items-center justify-between">
-        <Link href={isProfessor ? `/turmas/${turmaId}` : "/turmas"} className="text-sm underline">
-          {isProfessor ? "← Grupos da turma" : "← Meus quadros"}
-        </Link>
-        <h1 className="text-xl font-semibold">Quadro Kanban</h1>
-        <span />
-      </div>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      {isProfessor && grupos.length > 0 ? (
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Grupo:</label>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar atividade..."
+          className="min-w-[220px] flex-1 rounded-md border border-black/15 bg-background px-3 py-2 text-sm dark:border-white/15"
+        />
+        <select
+          value={filtroResponsavel}
+          onChange={(e) => setFiltroResponsavel(e.target.value)}
+          className="rounded-md border border-black/15 bg-background px-2 py-2 text-sm dark:border-white/15"
+        >
+          <option value="">Todos os responsáveis</option>
+          {membrosUnicos.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={filtroPrazo}
+          onChange={(e) => setFiltroPrazo(e.target.value as FiltroPrazo)}
+          className="rounded-md border border-black/15 bg-background px-2 py-2 text-sm dark:border-white/15"
+        >
+          <option value="todos">Prazo: todos</option>
+          <option value="atrasado">Atrasadas</option>
+          <option value="em_dia">Em dia</option>
+          <option value="sem_prazo">Sem prazo</option>
+        </select>
+        {grupos.length > 1 && (
           <select
-            value={grupoSelecionado}
-            onChange={(e) => setGrupoSelecionado(e.target.value)}
-            className="rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+            value={filtroGrupo}
+            onChange={(e) => setFiltroGrupo(e.target.value)}
+            className="rounded-md border border-black/15 bg-background px-2 py-2 text-sm dark:border-white/15"
           >
+            <option value="">Todos os grupos</option>
             {grupos.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.nome}
               </option>
             ))}
           </select>
-        </div>
-      ) : (
-        grupoAtual && <p className="text-sm font-medium">Grupo: {grupoAtual.nome}</p>
-      )}
-
-      {grupoAtual && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-black/10 p-3 text-sm dark:border-white/10">
-          <span className="font-medium">Filtros:</span>
-          <select
-            value={filtroResponsavel}
-            onChange={(e) => setFiltroResponsavel(e.target.value)}
-            className="rounded-md border border-black/15 px-2 py-1 dark:border-white/15 dark:bg-transparent"
-          >
-            <option value="">Todos os responsáveis</option>
-            {grupoAtual.membros.map((m) => (
-              <option key={m.user.id} value={m.user.id}>
-                {m.user.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
-            className="rounded-md border border-black/15 px-2 py-1 dark:border-white/15 dark:bg-transparent"
-          >
-            <option value="todos">Qualquer status</option>
-            <option value="atrasado">Atrasadas</option>
-            <option value="em_dia">Em dia</option>
-          </select>
-          <label className="flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={filtroComPrazo}
-              onChange={(e) => setFiltroComPrazo(e.target.checked)}
-            />
-            Com prazo definido
-          </label>
-          {(filtroResponsavel || filtroStatus !== "todos" || filtroComPrazo) && (
+        )}
+        {grupos.length > 1 && (
+          <div className="flex overflow-hidden rounded-md border border-black/15 text-sm dark:border-white/15">
             <button
-              onClick={() => {
-                setFiltroResponsavel("");
-                setFiltroStatus("todos");
-                setFiltroComPrazo(false);
-              }}
-              className="underline"
+              onClick={() => setModo("colunas")}
+              className={`px-3 py-2 ${modo === "colunas" ? "bg-black/5 font-medium dark:bg-white/10" : ""}`}
             >
-              limpar filtros
+              Colunas
             </button>
-          )}
-        </div>
-      )}
-
-      {podeGerenciarEstagios && (
-        <section className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-          <h2 className="text-sm font-semibold">Adicionar estágio</h2>
-          <form onSubmit={handleCreateEstagio} className="flex flex-wrap items-center gap-2">
-            <input
-              value={novoNome}
-              onChange={(e) => setNovoNome(e.target.value)}
-              placeholder="Nome do estágio"
-              className="flex-1 rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
-            />
-            <label className="flex items-center gap-1 text-sm">
-              <input
-                type="checkbox"
-                checked={novoIsConclusao}
-                onChange={(e) => setNovoIsConclusao(e.target.checked)}
-              />
-              Estágio de aprovação/conclusão
-            </label>
             <button
-              type="submit"
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+              onClick={() => setModo("raias")}
+              className={`px-3 py-2 ${modo === "raias" ? "bg-black/5 font-medium dark:bg-white/10" : ""}`}
             >
-              Adicionar
+              Raias por grupo
             </button>
-          </form>
-        </section>
-      )}
+          </div>
+        )}
+      </div>
 
-      {podeGerenciarEstagios && estagios.length === 0 && outrasTurmas.length > 0 && (
-        <section className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-          <h2 className="text-sm font-semibold">Duplicar estágios de outra turma</h2>
-          <form onSubmit={handleDuplicar} className="flex gap-2">
-            <select
-              value={origemDuplicar}
-              onChange={(e) => setOrigemDuplicar(e.target.value)}
-              className="flex-1 rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
-            >
-              <option value="">Selecionar turma de origem...</option>
-              {outrasTurmas.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nome}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={!origemDuplicar}
-              className="rounded-md border border-black/15 px-4 py-2 text-sm disabled:opacity-50 dark:border-white/15"
-            >
-              Duplicar
-            </button>
-          </form>
-        </section>
-      )}
-
-      {fetching ? (
-        <p className="text-sm text-black/60 dark:text-white/60">Carregando...</p>
-      ) : estagios.length === 0 ? (
-        <p className="text-sm text-black/60 dark:text-white/60">Nenhum estágio criado ainda.</p>
-      ) : (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {estagios.map((estagio, index) => (
-              <ColumnDropZone key={estagio.id} estagioId={estagio.id}>
-                <div className="mb-2 flex items-center justify-between">
-                  {podeGerenciarEstagios ? (
-                    <button onClick={() => handleRename(estagio)} className="text-left text-sm font-medium hover:underline">
-                      {estagio.nome}
-                    </button>
-                  ) : (
-                    <span className="text-sm font-medium">{estagio.nome}</span>
-                  )}
-                  {estagio.is_conclusao && (
-                    <span className="rounded bg-black/10 px-2 py-0.5 text-xs dark:bg-white/10">
-                      aprovação
-                    </span>
-                  )}
-                </div>
-
-                {podeGerenciarEstagios && (
-                  <div className="mb-3 flex flex-wrap gap-2 text-xs">
-                    <button onClick={() => handleMove(index, -1)} disabled={index === 0} className="underline disabled:opacity-30">
-                      ← mover
-                    </button>
-                    <button
-                      onClick={() => handleMove(index, 1)}
-                      disabled={index === estagios.length - 1}
-                      className="underline disabled:opacity-30"
-                    >
-                      mover →
-                    </button>
-                    <button onClick={() => handleToggleConclusao(estagio)} className="underline">
-                      {estagio.is_conclusao ? "desmarcar aprovação" : "marcar aprovação"}
-                    </button>
-                    <button onClick={() => handleDelete(estagio)} className="underline">
-                      remover
-                    </button>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  {atividades
-                    .filter((a) => a.estagio_id === estagio.id && passaNosFiltros(a))
-                    .map((atividade) => (
-                      <DraggableCard key={atividade.id} atividadeId={atividade.id}>
-                        <div
-                          onClick={() => setAtividadeSelecionada(atividade)}
-                          className={`cursor-pointer rounded-md border p-2 text-sm ${
-                            isAtrasada(atividade)
-                              ? "border-red-400 bg-red-50 dark:border-red-500/60 dark:bg-red-950/30"
-                              : "border-black/10 bg-black/[.02] dark:border-white/10 dark:bg-white/[.03]"
-                          }`}
-                        >
-                          <p className="font-medium">{atividade.nome}</p>
-                          {atividade.data_fim && (
-                            <p
-                              className={`text-xs ${
-                                isAtrasada(atividade)
-                                  ? "font-medium text-red-600 dark:text-red-400"
-                                  : "text-black/60 dark:text-white/60"
-                              }`}
-                            >
-                              {isAtrasada(atividade) ? "Atrasada — " : "Prazo: "}
-                              {new Date(atividade.data_fim).toLocaleDateString("pt-BR")}
-                            </p>
-                          )}
-                          {atividade.responsaveis.length > 0 && (
-                            <p className="text-xs text-black/60 dark:text-white/60">
-                              {atividade.responsaveis.map((r) => r.name).join(", ")}
-                            </p>
-                          )}
-                        </div>
-                      </DraggableCard>
-                    ))}
-                </div>
-
-                {podeGerenciarAtividades && grupoSelecionado && (
-                  <div className="mt-3">
-                    {novaAtividadeEstagio === estagio.id ? (
-                      <NovaAtividadeForm
-                        membros={grupoAtual?.membros ?? []}
-                        onCancel={() => setNovaAtividadeEstagio(null)}
-                        onCreate={(nome, responsavelIds) =>
-                          handleCreateAtividade(estagio.id, nome, responsavelIds)
-                        }
-                      />
-                    ) : (
-                      <button
-                        onClick={() => setNovaAtividadeEstagio(estagio.id)}
-                        className="text-xs underline"
-                      >
-                        + Nova atividade
-                      </button>
-                    )}
-                  </div>
-                )}
-              </ColumnDropZone>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        {modo === "colunas" ? (
+          <Colunas
+            estagios={estagios}
+            atividades={atividadesFiltradas}
+            isAtrasada={isAtrasada}
+            podeGerenciar={podeGerenciar}
+            novaAtividadeEstagio={novaAtividadeEstagio}
+            setNovaAtividadeEstagio={setNovaAtividadeEstagio}
+            onSelecionar={setAtividadeSelecionada}
+            grupoParaCriar={grupoParaCriar}
+            createAtividade={createAtividade}
+            grupoNomePorId={!filtroGrupo && grupos.length > 1 ? grupoNomePorId : undefined}
+          />
+        ) : (
+          <div className="space-y-8">
+            {gruposParaRaias.map((g) => (
+              <div key={g.id} className="space-y-2">
+                <h3 className="text-sm font-semibold">{g.nome}</h3>
+                <Colunas
+                  estagios={estagios}
+                  atividades={atividadesFiltradas.filter((a) => a.grupo_id === g.id)}
+                  isAtrasada={isAtrasada}
+                  podeGerenciar={podeGerenciar}
+                  novaAtividadeEstagio={novaAtividadeEstagio}
+                  setNovaAtividadeEstagio={setNovaAtividadeEstagio}
+                  onSelecionar={setAtividadeSelecionada}
+                  grupoParaCriar={g}
+                  createAtividade={createAtividade}
+                />
+              </div>
             ))}
           </div>
-        </DndContext>
-      )}
+        )}
+      </DndContext>
 
       {atividadeSelecionada && (
-        <CardDetailModal
-          atividade={atividadeSelecionada}
-          podeEditar={
-            podeGerenciarAtividades ||
-            atividadeSelecionada.responsaveis.some((r) => r.id === user.id)
-          }
-          onClose={() => setAtividadeSelecionada(null)}
-        />
+        <CardDetailModal atividadeId={atividadeSelecionada} onClose={() => setAtividadeSelecionada(null)} />
       )}
     </div>
   );
 }
 
-function CardDetailModal({
-  atividade,
-  podeEditar,
-  onClose,
+function Colunas({
+  estagios,
+  atividades,
+  isAtrasada,
+  podeGerenciar,
+  novaAtividadeEstagio,
+  setNovaAtividadeEstagio,
+  onSelecionar,
+  grupoParaCriar,
+  createAtividade,
+  grupoNomePorId,
 }: {
-  atividade: Atividade;
-  podeEditar: boolean;
-  onClose: () => void;
+  estagios: Estagio[];
+  atividades: Atividade[];
+  isAtrasada: (a: Atividade) => boolean;
+  podeGerenciar: boolean;
+  novaAtividadeEstagio: string | null;
+  setNovaAtividadeEstagio: (id: string | null) => void;
+  onSelecionar: (id: string) => void;
+  grupoParaCriar?: Grupo;
+  createAtividade: ReturnType<typeof useTurmaBoard>["createAtividade"];
+  grupoNomePorId?: Record<string, string>;
 }) {
-  const [itens, setItens] = useState<ChecklistItem[]>([]);
-  const [fetching, setFetching] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [novoTexto, setNovoTexto] = useState("");
-
-  const [anexos, setAnexos] = useState<Anexo[]>([]);
-  const [uploading, setUploading] = useState(false);
-
-  const [comentarios, setComentarios] = useState<Comentario[]>([]);
-  const [novoComentario, setNovoComentario] = useState("");
-  const [enviandoComentario, setEnviandoComentario] = useState(false);
-
-  const [historico, setHistorico] = useState<HistoricoEntry[]>([]);
-
-  useEffect(() => {
-    api
-      .listChecklist(atividade.id)
-      .then(setItens)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar checklist"))
-      .finally(() => setFetching(false));
-    api
-      .listAnexos(atividade.id)
-      .then(setAnexos)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar anexos"));
-    api
-      .listComentarios(atividade.id)
-      .then(setComentarios)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar comentários"));
-    api
-      .listHistorico(atividade.id)
-      .then(setHistorico)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar histórico"));
-  }, [atividade.id]);
-
-  function formatarDataHora(iso: string | null) {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleString("pt-BR");
-  }
-
-  // Monta a linha do tempo de entrada/saída por estágio a partir do histórico de movimentações.
-  const timelineEstagios = (() => {
-    if (historico.length === 0) {
-      return [{ estagio: "estágio atual", entrada: atividade.data_criacao, saida: null as string | null }];
-    }
-    const linhas: { estagio: string; entrada: string; saida: string | null }[] = [];
-    const primeiro = historico[0];
-    linhas.push({
-      estagio: primeiro.estagio_de_nome ?? "estágio inicial",
-      entrada: atividade.data_criacao,
-      saida: primeiro.created_at,
-    });
-    historico.forEach((entrada, i) => {
-      linhas.push({
-        estagio: entrada.estagio_para_nome,
-        entrada: entrada.created_at,
-        saida: i + 1 < historico.length ? historico[i + 1].created_at : null,
-      });
-    });
-    return linhas;
-  })();
-
-  async function handleAddComentario(e: React.FormEvent) {
-    e.preventDefault();
-    if (!novoComentario.trim()) return;
-    setEnviandoComentario(true);
-    setError(null);
-    try {
-      const comentario = await api.createComentario(atividade.id, novoComentario.trim());
-      setComentarios((prev) => [...prev, comentario]);
-      setNovoComentario("");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao enviar comentário");
-    } finally {
-      setEnviandoComentario(false);
-    }
-  }
-
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setError(null);
-    try {
-      const anexo = await api.uploadAnexo(atividade.id, file);
-      setAnexos((prev) => {
-        const existente = prev.find((a) => a.id === anexo.id);
-        return existente ? prev.map((a) => (a.id === anexo.id ? anexo : a)) : [...prev, anexo];
-      });
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao enviar arquivo");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  }
-
-  async function handleDownload(versaoId: string, nomeArquivo: string) {
-    setError(null);
-    try {
-      await api.downloadAnexoVersao(versaoId, nomeArquivo);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao baixar arquivo");
-    }
-  }
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!novoTexto.trim()) return;
-    setError(null);
-    try {
-      const item = await api.createChecklistItem(atividade.id, novoTexto.trim());
-      setItens((prev) => [...prev, item]);
-      setNovoTexto("");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao adicionar item");
-    }
-  }
-
-  async function handleToggle(item: ChecklistItem) {
-    setError(null);
-    try {
-      const updated = await api.updateChecklistItem(item.id, { concluido: !item.concluido });
-      setItens((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao atualizar item");
-    }
-  }
-
-  async function handleRemove(item: ChecklistItem) {
-    setError(null);
-    try {
-      await api.deleteChecklistItem(item.id);
-      setItens((prev) => prev.filter((i) => i.id !== item.id));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao remover item");
-    }
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="text-lg font-semibold">{atividade.nome}</h2>
-          <button onClick={onClose} className="text-sm underline">
-            Fechar
-          </button>
-        </div>
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {estagios.map((estagio, index) => {
+        const doEstagio = atividades.filter((a) => a.estagio_id === estagio.id);
+        const totalHoras = doEstagio.reduce((acc, a) => acc + (a.estimativa_horas ?? 0), 0);
+        const cor = estagio.cor ?? ESTAGIO_CORES_DEFAULT[index % ESTAGIO_CORES_DEFAULT.length];
 
-        {atividade.responsaveis.length > 0 && (
-          <p className="text-sm text-black/60 dark:text-white/60">
-            Responsáveis: {atividade.responsaveis.map((r) => r.name).join(", ")}
-          </p>
-        )}
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <div className="space-y-1 rounded-md border border-black/10 p-2 text-sm dark:border-white/10">
-          <p>
-            <span className="text-black/60 dark:text-white/60">Criado em:</span>{" "}
-            {formatarDataHora(atividade.data_criacao)}
-          </p>
-          <p>
-            <span className="text-black/60 dark:text-white/60">Previsão de finalização:</span>{" "}
-            {formatarDataHora(atividade.data_fim)}
-          </p>
-          <p>
-            <span className="text-black/60 dark:text-white/60">Entrada no estágio atual:</span>{" "}
-            {formatarDataHora(atividade.data_inicio_estagio)}
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Histórico de estágios</h3>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-black/10 text-left dark:border-white/10">
-                <th className="py-1 font-medium">Estágio</th>
-                <th className="py-1 font-medium">Entrada</th>
-                <th className="py-1 font-medium">Saída</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timelineEstagios.map((linha, i) => (
-                <tr key={i} className="border-b border-black/5 dark:border-white/5">
-                  <td className="py-1">{linha.estagio}</td>
-                  <td className="py-1">{formatarDataHora(linha.entrada)}</td>
-                  <td className="py-1">{linha.saida ? formatarDataHora(linha.saida) : "ainda no estágio"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Checklist</h3>
-          {fetching ? (
-            <p className="text-sm text-black/60 dark:text-white/60">Carregando...</p>
-          ) : itens.length === 0 ? (
-            <p className="text-sm text-black/60 dark:text-white/60">Nenhum item ainda.</p>
-          ) : (
-            <ul className="space-y-1">
-              {itens.map((item) => (
-                <li key={item.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={item.concluido}
-                    disabled={!podeEditar}
-                    onChange={() => handleToggle(item)}
-                  />
-                  <span className={item.concluido ? "flex-1 line-through opacity-60" : "flex-1"}>
-                    {item.texto}
-                  </span>
-                  {podeEditar && (
-                    <button onClick={() => handleRemove(item)} className="text-xs underline">
-                      remover
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {podeEditar && (
-            <form onSubmit={handleAdd} className="flex gap-2 pt-1">
-              <input
-                value={novoTexto}
-                onChange={(e) => setNovoTexto(e.target.value)}
-                placeholder="Novo item do checklist"
-                className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
-              />
-              <button
-                type="submit"
-                className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background"
-              >
-                Adicionar
-              </button>
-            </form>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Anexos</h3>
-          {anexos.length === 0 ? (
-            <p className="text-sm text-black/60 dark:text-white/60">Nenhum anexo ainda.</p>
-          ) : (
-            <ul className="space-y-2">
-              {anexos.map((anexo) => (
-                <li key={anexo.id} className="text-sm">
-                  <p className="font-medium">{anexo.nome_referencia}</p>
-                  <ul className="ml-3 space-y-0.5">
-                    {[...anexo.versoes].reverse().map((versao) => (
-                      <li key={versao.id} className="flex items-center justify-between text-xs">
-                        <span className="text-black/60 dark:text-white/60">
-                          v{versao.versao_numero} — {versao.uploaded_by.name} —{" "}
-                          {new Date(versao.created_at).toLocaleDateString("pt-BR")}
-                        </span>
-                        <button
-                          onClick={() => handleDownload(versao.id, versao.nome_arquivo)}
-                          className="underline"
-                        >
-                          baixar
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <label className="inline-block cursor-pointer rounded-md border border-black/15 px-3 py-1 text-xs dark:border-white/15">
-            {uploading ? "Enviando..." : "+ Anexar arquivo"}
-            <input type="file" className="hidden" disabled={uploading} onChange={handleUpload} />
-          </label>
-        </div>
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Comentários</h3>
-          {comentarios.length === 0 ? (
-            <p className="text-sm text-black/60 dark:text-white/60">Nenhum comentário ainda.</p>
-          ) : (
-            <ul className="max-h-48 space-y-2 overflow-y-auto">
-              {comentarios.map((c) => (
-                <li key={c.id} className="text-sm">
-                  <p>
-                    <span className="font-medium">{c.autor.name}</span>{" "}
-                    <span className="text-xs text-black/60 dark:text-white/60">
-                      {new Date(c.created_at).toLocaleString("pt-BR")}
-                    </span>
-                  </p>
-                  <p className="whitespace-pre-wrap">{c.texto}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <form onSubmit={handleAddComentario} className="space-y-1 pt-1">
-            <p className="text-xs text-black/50 dark:text-white/50">
-              Use @Nome para mencionar e notificar um integrante do grupo.
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={novoComentario}
-                onChange={(e) => setNovoComentario(e.target.value)}
-                placeholder="Escreva um comentário... (ex: @Maria pode revisar?)"
-                className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
-              />
-              <button
-                type="submit"
-                disabled={enviandoComentario || !novoComentario.trim()}
-                className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
-              >
-                Enviar
-              </button>
+        return (
+          <ColumnDropZone key={estagio.id} estagioId={estagio.id}>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <span className={`h-2.5 w-2.5 rounded-full ${cor}`} />
+                {estagio.nome}
+                <span className="text-black/40 dark:text-white/40">{doEstagio.length}</span>
+              </span>
+              {totalHoras > 0 && <span className="text-xs text-black/40 dark:text-white/40">{totalHoras}h</span>}
             </div>
-          </form>
-        </div>
-      </div>
+
+            <div className="space-y-2">
+              {doEstagio.map((atividade) => (
+                <DraggableCard key={atividade.id} atividadeId={atividade.id}>
+                  <div
+                    onClick={() => onSelecionar(atividade.id)}
+                    className={`cursor-pointer space-y-1.5 rounded-md border p-2.5 text-sm shadow-sm ${
+                      isAtrasada(atividade)
+                        ? "border-red-300 bg-red-50 dark:border-red-500/50 dark:bg-red-950/30"
+                        : "border-black/10 bg-white dark:border-white/10 dark:bg-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-black/40 dark:text-white/40">
+                        AT-{String(atividade.numero).padStart(3, "0")}
+                      </span>
+                      <span className={`h-2 w-2 rounded-full ${PRIORIDADE_COR[atividade.prioridade]}`} />
+                    </div>
+                    <p className="font-medium">{atividade.nome}</p>
+                    {grupoNomePorId && (
+                      <p className="text-xs text-black/50 dark:text-white/50">{grupoNomePorId[atividade.grupo_id]}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      {atividade.data_fim && (
+                        <span
+                          className={`text-xs ${
+                            isAtrasada(atividade)
+                              ? "font-medium text-red-600 dark:text-red-400"
+                              : "text-black/50 dark:text-white/50"
+                          }`}
+                        >
+                          {isAtrasada(atividade) ? "Atrasada — " : ""}
+                          {new Date(atividade.data_fim).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                      {atividade.responsaveis.length > 0 && (
+                        <span className="flex -space-x-1.5">
+                          {atividade.responsaveis.map((r) => (
+                            <Avatar key={r.id} id={r.id} name={r.name} />
+                          ))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </DraggableCard>
+              ))}
+            </div>
+
+            {podeGerenciar && grupoParaCriar && (
+              <div className="mt-3">
+                {novaAtividadeEstagio === estagio.id ? (
+                  <NovaAtividadeForm
+                    membros={grupoParaCriar.membros}
+                    onCancel={() => setNovaAtividadeEstagio(null)}
+                    onCreate={async (nome, responsavelIds) => {
+                      await createAtividade(grupoParaCriar.id, {
+                        estagio_id: estagio.id,
+                        nome,
+                        responsavel_ids: responsavelIds,
+                      });
+                      setNovaAtividadeEstagio(null);
+                    }}
+                  />
+                ) : (
+                  <button onClick={() => setNovaAtividadeEstagio(estagio.id)} className="text-xs underline">
+                    + Nova atividade
+                  </button>
+                )}
+              </div>
+            )}
+          </ColumnDropZone>
+        );
+      })}
     </div>
   );
 }
 
-function ColumnDropZone({
-  estagioId,
-  children,
-}: {
-  estagioId: string;
-  children: React.ReactNode;
-}) {
+function ColumnDropZone({ estagioId, children }: { estagioId: string; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: estagioId });
 
   return (
     <div
       ref={setNodeRef}
-      className={`w-72 shrink-0 rounded-lg border p-3 transition-colors ${
-        isOver ? "border-foreground/40 bg-black/[.03] dark:bg-white/[.05]" : "border-black/10 dark:border-white/10"
+      className={`w-72 shrink-0 rounded-lg border bg-slate-100/60 p-3 transition-colors dark:bg-slate-900/40 ${
+        isOver ? "border-blue-400 bg-blue-50 dark:bg-blue-950/20" : "border-black/10 dark:border-white/10"
       }`}
     >
       {children}
@@ -885,13 +361,11 @@ function NovaAtividadeForm({
   const [responsaveis, setResponsaveis] = useState<string[]>([]);
 
   function toggleResponsavel(userId: string) {
-    setResponsaveis((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
+    setResponsaveis((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-black/10 p-2 dark:border-white/10">
+    <div className="space-y-2 rounded-md border border-black/10 bg-background p-2 dark:border-white/10">
       <input
         value={nome}
         onChange={(e) => setNome(e.target.value)}
@@ -921,7 +395,7 @@ function NovaAtividadeForm({
             setResponsaveis([]);
           }}
           disabled={!nome.trim()}
-          className="rounded-md bg-foreground px-3 py-1 text-xs font-medium text-background disabled:opacity-50"
+          className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
         >
           Criar
         </button>

@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.atividade import Prioridade
 from app.schemas.user import UserOut
 
 
@@ -13,6 +14,8 @@ class AtividadeCreate(BaseModel):
     data_inicio: datetime | None = None
     data_fim: datetime | None = None
     responsavel_ids: list[uuid.UUID] = []
+    prioridade: Prioridade = Prioridade.MEDIA
+    estimativa_horas: int | None = None
 
 
 class AtividadeUpdate(BaseModel):
@@ -21,6 +24,8 @@ class AtividadeUpdate(BaseModel):
     data_inicio: datetime | None = None
     data_fim: datetime | None = None
     responsavel_ids: list[uuid.UUID] | None = None
+    prioridade: Prioridade | None = None
+    estimativa_horas: int | None = None
 
 
 class AtividadeOut(BaseModel):
@@ -30,13 +35,17 @@ class AtividadeOut(BaseModel):
     grupo_id: uuid.UUID
     estagio_id: uuid.UUID
     criador_id: uuid.UUID
+    numero: int
     nome: str
     texto: str | None
+    prioridade: Prioridade
+    estimativa_horas: int | None
     data_criacao: datetime
     data_inicio: datetime | None
     data_inicio_estagio: datetime
     data_fim: datetime | None
     responsaveis: list[UserOut] = Field(validation_alias="responsaveis_users")
+    criador: UserOut
 
 
 class MoverAtividadeRequest(BaseModel):

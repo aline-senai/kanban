@@ -9,7 +9,7 @@ from app.models.grupo import Grupo, GrupoMembro
 from app.models.turma import Turma
 from app.models.user import User, UserRole
 from app.routers.turmas import get_owned_turma
-from app.schemas.grupo import GrupoCreate, GrupoMembroCreate, GrupoMembroUpdate, GrupoOut
+from app.schemas.grupo import GrupoCreate, GrupoMembroCreate, GrupoMembroUpdate, GrupoOut, GrupoUpdate
 
 router = APIRouter(tags=["grupos"])
 
@@ -54,8 +54,25 @@ def create_grupo(
     db: Session = Depends(get_db),
 ):
     get_owned_turma(turma_id, current_user, db)
-    grupo = Grupo(turma_id=turma_id, nome=payload.nome)
+    grupo = Grupo(turma_id=turma_id, nome=payload.nome, descricao=payload.descricao)
     db.add(grupo)
+    db.commit()
+    db.refresh(grupo)
+    return grupo
+
+
+@router.patch("/grupos/{grupo_id}", response_model=GrupoOut)
+def update_grupo(
+    grupo_id: uuid.UUID,
+    payload: GrupoUpdate,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    grupo = _get_owned_grupo(grupo_id, current_user, db)
+    if payload.nome is not None:
+        grupo.nome = payload.nome
+    if payload.descricao is not None:
+        grupo.descricao = payload.descricao
     db.commit()
     db.refresh(grupo)
     return grupo

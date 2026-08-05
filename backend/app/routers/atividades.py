@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -74,14 +75,25 @@ def create_atividade(
 
     _validate_responsaveis(grupo_id, payload.responsavel_ids, db)
 
+    proximo_numero = (
+        db.query(func.coalesce(func.max(Atividade.numero), 0))
+        .join(Grupo, Grupo.id == Atividade.grupo_id)
+        .filter(Grupo.turma_id == grupo.turma_id)
+        .scalar()
+        + 1
+    )
+
     atividade = Atividade(
         grupo_id=grupo_id,
         estagio_id=payload.estagio_id,
         criador_id=current_user.id,
+        numero=proximo_numero,
         nome=payload.nome,
         texto=payload.texto,
         data_inicio=payload.data_inicio,
         data_fim=payload.data_fim,
+        prioridade=payload.prioridade,
+        estimativa_horas=payload.estimativa_horas,
     )
     db.add(atividade)
     db.flush()
@@ -124,6 +136,10 @@ def update_atividade(
         atividade.data_inicio = payload.data_inicio
     if payload.data_fim is not None:
         atividade.data_fim = payload.data_fim
+    if payload.prioridade is not None:
+        atividade.prioridade = payload.prioridade
+    if payload.estimativa_horas is not None:
+        atividade.estimativa_horas = payload.estimativa_horas
 
     if payload.responsavel_ids is not None:
         _validate_responsaveis(atividade.grupo_id, payload.responsavel_ids, db)
