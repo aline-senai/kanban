@@ -7,6 +7,7 @@ from app.models.checklist import ChecklistItem
 from app.models.anexo import Anexo, AnexoVersao
 from app.models.comentario import Comentario
 from app.models.notificacao import Notificacao, NotificacaoTipo
+from app.models.password_reset import PasswordResetToken
 
 __all__ = [
     "User",
@@ -24,4 +25,5 @@ __all__ = [
     "Comentario",
     "Notificacao",
     "NotificacaoTipo",
+    "PasswordResetToken",
 ]
