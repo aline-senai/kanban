@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError } from "@/lib/api";
 
@@ -104,6 +105,12 @@ export default function LoginPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
+          <div className="flex justify-end">
+            <Link href="/esqueci-senha" className="text-xs underline">
+              Esqueceu a senha? Recuperar acesso
+            </Link>
+          </div>
+
           <button
             type="submit"
             disabled={submitting}
@@ -111,6 +118,13 @@ export default function LoginPage() {
           >
             {submitting ? "Entrando..." : "Entrar no quadro"}
           </button>
+
+          <p className="text-center text-sm">
+            Não tem conta?{" "}
+            <Link href="/cadastro" className="underline">
+              Cadastre-se
+            </Link>
+          </p>
 
           <div className="space-y-2 pt-2">
             <p className="text-center text-xs font-medium uppercase tracking-wide text-black/40 dark:text-white/40">

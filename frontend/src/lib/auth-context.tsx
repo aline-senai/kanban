@@ -8,6 +8,7 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshMe: () => Promise<void>;
 };
@@ -39,6 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/turmas");
   }
 
+  async function register(name: string, email: string, password: string) {
+    const { access_token } = await api.register(name, email, password);
+    setToken(access_token);
+    const me = await api.me();
+    setUser(me);
+    router.push("/turmas");
+  }
+
   function logout() {
     clearToken();
     setUser(null);
@@ -51,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshMe }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshMe }}>
       {children}
     </AuthContext.Provider>
   );
