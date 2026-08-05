@@ -56,6 +56,18 @@ export default function TurmasPage() {
     }
   }
 
+  async function handleRenomear(turma: Turma) {
+    const novoNomeInput = window.prompt("Novo nome da turma", turma.nome);
+    if (!novoNomeInput || !novoNomeInput.trim() || novoNomeInput === turma.nome) return;
+    setError(null);
+    try {
+      const updated = await api.updateTurma(turma.id, { nome: novoNomeInput.trim() });
+      setTurmas((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao renomear turma");
+    }
+  }
+
   if (loading || !user) return null;
 
   const isProfessor = user.role === "professor";
@@ -111,9 +123,14 @@ export default function TurmasPage() {
                 {turma.nome}
               </Link>
               {isProfessor && (
-                <button onClick={() => handleToggleArquivada(turma)} className="text-sm underline">
-                  {turma.arquivada ? "Desarquivar" : "Arquivar"}
-                </button>
+                <span className="flex gap-3">
+                  <button onClick={() => handleRenomear(turma)} className="text-sm underline">
+                    Renomear
+                  </button>
+                  <button onClick={() => handleToggleArquivada(turma)} className="text-sm underline">
+                    {turma.arquivada ? "Desarquivar" : "Arquivar"}
+                  </button>
+                </span>
               )}
             </li>
           ))}
