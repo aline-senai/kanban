@@ -24,3 +24,4 @@ class Turma(Base):
     professor = relationship("User")
     grupos = relationship("Grupo", back_populates="turma", cascade="all, delete-orphan")
     estagios = relationship("Estagio", back_populates="turma", cascade="all, delete-orphan")
+    materiais = relationship("Material", back_populates="turma", cascade="all, delete-orphan")

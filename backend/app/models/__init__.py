@@ -8,6 +8,7 @@ from app.models.anexo import Anexo, AnexoVersao
 from app.models.comentario import Comentario
 from app.models.notificacao import Notificacao, NotificacaoTipo
 from app.models.password_reset import PasswordResetToken
+from app.models.material import Material
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "Notificacao",
     "NotificacaoTipo",
     "PasswordResetToken",
+    "Material",
 ]

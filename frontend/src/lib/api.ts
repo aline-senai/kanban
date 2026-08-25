@@ -172,6 +172,15 @@ export type Anexo = {
   versoes: AnexoVersao[];
 };
 
+export type Material = {
+  id: string;
+  turma_id: string;
+  nome: string;
+  is_modelo: boolean;
+  uploaded_by: User;
+  created_at: string;
+};
+
 export type Comentario = {
   id: string;
   atividade_id: string;
@@ -325,6 +334,18 @@ export const api = {
   },
   downloadAnexoVersao: (versaoId: string, nomeArquivo: string) =>
     downloadFile(`/anexo-versoes/${versaoId}/download`, nomeArquivo),
+
+  listMateriais: (turmaId: string) => request<Material[]>(`/turmas/${turmaId}/materiais`),
+  uploadMaterial: (turmaId: string, file: File, nome?: string, isModelo = true) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (nome) formData.append("nome", nome);
+    formData.append("is_modelo", String(isModelo));
+    return request<Material>(`/turmas/${turmaId}/materiais`, { method: "POST", body: formData });
+  },
+  downloadMaterial: (materialId: string, nomeArquivo: string) =>
+    downloadFile(`/materiais/${materialId}/download`, nomeArquivo),
+  deleteMaterial: (materialId: string) => request<void>(`/materiais/${materialId}`, { method: "DELETE" }),
 
   listComentarios: (atividadeId: string) => request<Comentario[]>(`/atividades/${atividadeId}/comentarios`),
   createComentario: (atividadeId: string, texto: string) =>

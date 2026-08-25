@@ -14,3 +14,7 @@ export function podeGerenciarAtividades(effectiveRole: EffectiveRole): boolean {
 export function podeGerenciarGrupos(effectiveRole: EffectiveRole): boolean {
   return effectiveRole === "professor";
 }
+
+export function podeGerenciarMateriais(effectiveRole: EffectiveRole): boolean {
+  return effectiveRole === "professor";
+}
