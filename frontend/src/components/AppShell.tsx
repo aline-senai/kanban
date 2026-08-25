@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { slug: "lista", label: "Lista" },
   { slug: "cronograma", label: "Cronograma" },
   { slug: "equipe", label: "Equipe e grupos" },
+  { slug: "materiais", label: "Materiais" },
   { slug: "conta", label: "Minha conta" },
 ] as const;
 
@@ -25,6 +26,7 @@ const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   lista: { title: "Lista de atividades", subtitle: "Ordenada por prazo · clique para abrir o detalhe" },
   cronograma: { title: "Cronograma", subtitle: "Linha do tempo das sprints" },
   equipe: { title: "Equipe e grupos", subtitle: "Grupos, gestores e estágios do quadro" },
+  materiais: { title: "Materiais", subtitle: "Pasta da turma com os arquivos modelo" },
   conta: { title: "Minha conta", subtitle: "Dados de acesso e preferências de notificação" },
   relatorios: { title: "Relatórios", subtitle: "Conclusão por grupo e atividades atrasadas" },
 };

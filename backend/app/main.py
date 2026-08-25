@@ -11,6 +11,7 @@ from app.routers import (
     estagios,
     grupos,
     health,
+    materiais,
     notificacoes,
     relatorios,
     turmas,
@@ -36,6 +37,7 @@ app.include_router(estagios.router)
 app.include_router(atividades.router)
 app.include_router(checklist.router)
 app.include_router(anexos.router)
+app.include_router(materiais.router)
 app.include_router(comentarios.router)
 app.include_router(notificacoes.router)
 app.include_router(relatorios.router)
