@@ -21,6 +21,7 @@ class Atividade(Base):
     grupo_id = Column(UUID(as_uuid=True), ForeignKey("grupos.id"), nullable=False)
     estagio_id = Column(UUID(as_uuid=True), ForeignKey("estagios.id"), nullable=False)
     criador_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    sprint_id = Column(UUID(as_uuid=True), ForeignKey("sprints.id"), nullable=True)
 
     numero = Column(Integer, nullable=False)
     nome = Column(String, nullable=False)
@@ -38,6 +39,7 @@ class Atividade(Base):
     grupo = relationship("Grupo")
     estagio = relationship("Estagio")
     criador = relationship("User")
+    sprint = relationship("Sprint")
     responsaveis = relationship("AtividadeResponsavel", back_populates="atividade", cascade="all, delete-orphan")
     checklist_itens = relationship("ChecklistItem", back_populates="atividade", cascade="all, delete-orphan")
     anexos = relationship("Anexo", back_populates="atividade", cascade="all, delete-orphan")
@@ -46,6 +48,10 @@ class Atividade(Base):
     @property
     def responsaveis_users(self):
         return [r.user for r in self.responsaveis]
+
+    @property
+    def sprint_nome(self):
+        return self.sprint.nome if self.sprint else None
 
 
 class AtividadeResponsavel(Base):

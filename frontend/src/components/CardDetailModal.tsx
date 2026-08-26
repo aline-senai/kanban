@@ -44,7 +44,8 @@ function formatarDuracao(desdeIso: string): string {
 export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string; onClose: () => void }) {
   const { user } = useAuth();
   const { effectiveRole } = useViewAs();
-  const { atividades, estagios, grupos, moverAtividade, updateAtividade, deleteAtividade } = useTurmaBoard();
+  const { atividades, estagios, grupos, sprints, moverAtividade, updateAtividade, deleteAtividade } =
+    useTurmaBoard();
 
   const atividade = atividades.find((a) => a.id === atividadeId);
   const grupoAtual = atividade ? grupos.find((g) => g.id === atividade.grupo_id) : undefined;
@@ -173,6 +174,15 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
       await updateAtividade(atividade!.id, { data_fim: valor ? new Date(valor).toISOString() : null });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao atualizar prazo");
+    }
+  }
+
+  async function handleSalvarSprint(valor: string) {
+    setError(null);
+    try {
+      await updateAtividade(atividade!.id, { sprint_id: valor || null });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao atualizar sprint");
     }
   }
 
@@ -480,6 +490,25 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
               />
             ) : (
               <p>{atividade.estimativa_horas != null ? `${atividade.estimativa_horas}h` : "—"}</p>
+            )}
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-black/50 dark:text-white/50">Sprint</p>
+            {podeEditar && sprints.length > 0 ? (
+              <select
+                defaultValue={atividade.sprint_id ?? ""}
+                onChange={(e) => handleSalvarSprint(e.target.value)}
+                className="w-full rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+              >
+                <option value="">Nenhuma</option>
+                {sprints.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p>{atividade.sprint_nome ?? "—"}</p>
             )}
           </div>
           <div className="space-y-1">
