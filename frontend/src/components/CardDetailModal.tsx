@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useTurmaBoard } from "@/lib/turma-board-context";
 import { useViewAs } from "@/lib/view-as-context";
@@ -9,6 +9,7 @@ import {
   api,
   ApiError,
   type Anexo,
+  type AtividadeVinculo,
   type ChecklistItem,
   type Comentario,
   type HistoricoEntry,
@@ -28,6 +29,13 @@ function formatarDataHora(iso: string | null) {
   return new Date(iso).toLocaleString("pt-BR");
 }
 
+function normalizarTexto(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function formatarDuracao(desdeIso: string): string {
   const dias = Math.max(0, Math.floor((Date.now() - new Date(desdeIso).getTime()) / 86400000));
   return dias === 0 ? "hoje" : `${dias}d`;
@@ -36,7 +44,7 @@ function formatarDuracao(desdeIso: string): string {
 export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string; onClose: () => void }) {
   const { user } = useAuth();
   const { effectiveRole } = useViewAs();
-  const { atividades, estagios, grupos, moverAtividade, updateAtividade } = useTurmaBoard();
+  const { atividades, estagios, grupos, moverAtividade, updateAtividade, deleteAtividade } = useTurmaBoard();
 
   const atividade = atividades.find((a) => a.id === atividadeId);
   const grupoAtual = atividade ? grupos.find((g) => g.id === atividade.grupo_id) : undefined;
@@ -56,11 +64,19 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [novoComentario, setNovoComentario] = useState("");
   const [enviandoComentario, setEnviandoComentario] = useState(false);
+  const [mencaoAtiva, setMencaoAtiva] = useState<{ termo: string; inicio: number } | null>(null);
+  const comentarioInputRef = useRef<HTMLInputElement>(null);
 
   const [historico, setHistorico] = useState<HistoricoEntry[]>([]);
 
   const [descricao, setDescricao] = useState(atividade?.texto ?? "");
   const [editandoResponsaveis, setEditandoResponsaveis] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+
+  const [vinculos, setVinculos] = useState<AtividadeVinculo[]>([]);
+  const [adicionandoVinculo, setAdicionandoVinculo] = useState(false);
+  const [buscaVinculo, setBuscaVinculo] = useState("");
+  const [salvandoVinculo, setSalvandoVinculo] = useState(false);
 
   useEffect(() => {
     if (!atividade) return;
@@ -81,6 +97,10 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
       .listHistorico(atividade.id)
       .then(setHistorico)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar histórico"));
+    api
+      .listVinculos(atividade.id)
+      .then(setVinculos)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Erro ao carregar atividades vinculadas"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [atividade?.id]);
 
@@ -92,20 +112,29 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
 
   const timelineEstagios = (() => {
     if (historico.length === 0) {
-      return [{ estagio: "estágio atual", entrada: atividade.data_criacao, saida: null as string | null }];
+      return [
+        {
+          estagio: "estágio atual",
+          entrada: atividade.data_criacao,
+          saida: null as string | null,
+          movidoPor: atividade.criador.name,
+        },
+      ];
     }
-    const linhas: { estagio: string; entrada: string; saida: string | null }[] = [];
+    const linhas: { estagio: string; entrada: string; saida: string | null; movidoPor: string }[] = [];
     const primeiro = historico[0];
     linhas.push({
       estagio: primeiro.estagio_de_nome ?? "estágio inicial",
       entrada: atividade.data_criacao,
       saida: primeiro.created_at,
+      movidoPor: atividade.criador.name,
     });
     historico.forEach((entrada, i) => {
       linhas.push({
         estagio: entrada.estagio_para_nome,
         entrada: entrada.created_at,
         saida: i + 1 < historico.length ? historico[i + 1].created_at : null,
+        movidoPor: entrada.user_name,
       });
     });
     return linhas;
@@ -168,6 +197,26 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
     }
   }
 
+  function handleComentarioChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const valor = e.target.value;
+    setNovoComentario(valor);
+
+    const cursor = e.target.selectionStart ?? valor.length;
+    const antesDoCursor = valor.slice(0, cursor);
+    const match = antesDoCursor.match(/(?:^|\s)@(\S*)$/);
+    setMencaoAtiva(match ? { termo: match[1], inicio: cursor - match[1].length - 1 } : null);
+  }
+
+  function handleSelecionarMencao(nomeCompleto: string) {
+    if (!mencaoAtiva) return;
+    const primeiroNome = nomeCompleto.split(" ")[0];
+    const antes = novoComentario.slice(0, mencaoAtiva.inicio);
+    const depois = novoComentario.slice(mencaoAtiva.inicio + 1 + mencaoAtiva.termo.length);
+    setNovoComentario(`${antes}@${primeiroNome} ${depois.trimStart()}`);
+    setMencaoAtiva(null);
+    comentarioInputRef.current?.focus();
+  }
+
   async function handleAddComentario(e: React.FormEvent) {
     e.preventDefault();
     if (!novoComentario.trim()) return;
@@ -177,6 +226,7 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
       const comentario = await api.createComentario(atividade!.id, novoComentario.trim());
       setComentarios((prev) => [...prev, comentario]);
       setNovoComentario("");
+      setMencaoAtiva(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao enviar comentário");
     } finally {
@@ -245,9 +295,61 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
     }
   }
 
+  async function handleExcluir() {
+    if (!window.confirm(`Remover a atividade "${atividade!.nome}"? Esta ação não pode ser desfeita.`)) return;
+    setError(null);
+    setExcluindo(true);
+    try {
+      await deleteAtividade(atividade!.id);
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao remover atividade");
+      setExcluindo(false);
+    }
+  }
+
+  async function handleAddVinculo(vinculadaId: string) {
+    setError(null);
+    setSalvandoVinculo(true);
+    try {
+      const vinculo = await api.createVinculo(atividade!.id, vinculadaId);
+      setVinculos((prev) => [...prev, vinculo]);
+      setBuscaVinculo("");
+      setAdicionandoVinculo(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao vincular atividade");
+    } finally {
+      setSalvandoVinculo(false);
+    }
+  }
+
+  async function handleRemoveVinculo(vinculadaId: string) {
+    setError(null);
+    try {
+      await api.deleteVinculo(atividade!.id, vinculadaId);
+      setVinculos((prev) => prev.filter((v) => v.atividade.id !== vinculadaId));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao desvincular atividade");
+    }
+  }
+
   const concluidos = itens.filter((i) => i.concluido).length;
   const progresso = itens.length > 0 ? Math.round((concluidos / itens.length) * 100) : 0;
   const membrosDisponiveis = grupoAtual?.membros ?? [];
+
+  const sugestoesMencao = mencaoAtiva
+    ? membrosDisponiveis
+        .filter((m) => m.user.id !== user?.id)
+        .filter((m) => normalizarTexto(m.user.name).includes(normalizarTexto(mencaoAtiva.termo)))
+        .slice(0, 5)
+    : [];
+
+  const candidatosVinculo = atividades.filter(
+    (a) =>
+      a.id !== atividade.id &&
+      !vinculos.some((v) => v.atividade.id === a.id) &&
+      (buscaVinculo.trim() === "" || a.nome.toLowerCase().includes(buscaVinculo.trim().toLowerCase()))
+  );
 
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -262,9 +364,20 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
             </p>
             <h2 className="text-lg font-semibold">{atividade.nome}</h2>
           </div>
-          <button onClick={onClose} className="text-sm underline">
-            Fechar
-          </button>
+          <div className="flex items-center gap-3">
+            {podeGerenciar && (
+              <button
+                onClick={handleExcluir}
+                disabled={excluindo}
+                className="text-sm text-red-600 underline disabled:opacity-50 dark:text-red-400"
+              >
+                {excluindo ? "Removendo..." : "Excluir"}
+              </button>
+            )}
+            <button onClick={onClose} className="text-sm underline">
+              Fechar
+            </button>
+          </div>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -308,12 +421,13 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
           {editandoResponsaveis && (
             <div className="flex flex-wrap gap-2 rounded-md border border-black/10 p-2 text-xs dark:border-white/10">
               {membrosDisponiveis.map((m) => (
-                <label key={m.user.id} className="flex items-center gap-1">
+                <label key={m.user.id} className="flex items-center gap-1.5">
                   <input
                     type="checkbox"
                     checked={atividade.responsaveis.some((r) => r.id === m.user.id)}
                     onChange={() => handleToggleResponsavel(m.user.id)}
                   />
+                  <Avatar id={m.user.id} name={m.user.name} />
                   {m.user.name}
                 </label>
               ))}
@@ -398,6 +512,88 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
           )}
         </div>
 
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Atividades vinculadas</label>
+            {podeEditar && (
+              <button
+                onClick={() => {
+                  setAdicionandoVinculo((v) => !v);
+                  setBuscaVinculo("");
+                }}
+                className="text-xs underline"
+              >
+                {adicionandoVinculo ? "cancelar" : "+ vincular"}
+              </button>
+            )}
+          </div>
+
+          {vinculos.length > 0 ? (
+            <ul className="space-y-1">
+              {vinculos.map((v) => (
+                <li
+                  key={v.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-black/10 px-2 py-1.5 text-sm dark:border-white/10"
+                >
+                  <span className="min-w-0 truncate">
+                    <span className="text-black/40 dark:text-white/40">
+                      AT-{String(v.atividade.numero).padStart(3, "0")}
+                    </span>{" "}
+                    {v.atividade.nome}{" "}
+                    <span className="text-xs text-black/50 dark:text-white/50">
+                      ({v.atividade.grupo_nome} · {v.atividade.estagio_nome})
+                    </span>
+                  </span>
+                  {podeEditar && (
+                    <button
+                      onClick={() => handleRemoveVinculo(v.atividade.id)}
+                      className="shrink-0 text-xs underline"
+                    >
+                      remover
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-black/50 dark:text-white/50">Nenhuma atividade vinculada.</p>
+          )}
+
+          {adicionandoVinculo && (
+            <div className="space-y-2 rounded-md border border-black/10 p-2 dark:border-white/10">
+              <input
+                value={buscaVinculo}
+                onChange={(e) => setBuscaVinculo(e.target.value)}
+                placeholder="Buscar atividade para vincular..."
+                autoFocus
+                className="w-full rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+              />
+              <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
+                {candidatosVinculo.length === 0 ? (
+                  <li className="text-xs text-black/50 dark:text-white/50">Nenhuma atividade encontrada.</li>
+                ) : (
+                  candidatosVinculo.slice(0, 20).map((a) => (
+                    <li key={a.id}>
+                      <button
+                        onClick={() => handleAddVinculo(a.id)}
+                        disabled={salvandoVinculo}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
+                      >
+                        <span className="min-w-0 truncate">
+                          <span className="text-black/40 dark:text-white/40">
+                            AT-{String(a.numero).padStart(3, "0")}
+                          </span>{" "}
+                          {a.nome}
+                        </span>
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+
         <div className="space-y-2">
           <h3 className="text-sm font-semibold">Histórico de estágios</h3>
           <table className="w-full text-xs">
@@ -406,6 +602,7 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
                 <th className="py-1 font-medium">Estágio</th>
                 <th className="py-1 font-medium">Entrada</th>
                 <th className="py-1 font-medium">Saída</th>
+                <th className="py-1 font-medium">Movido por</th>
               </tr>
             </thead>
             <tbody>
@@ -414,6 +611,7 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
                   <td className="py-1">{linha.estagio}</td>
                   <td className="py-1">{formatarDataHora(linha.entrada)}</td>
                   <td className="py-1">{linha.saida ? formatarDataHora(linha.saida) : "ainda no estágio"}</td>
+                  <td className="py-1">{linha.movidoPor}</td>
                 </tr>
               ))}
             </tbody>
@@ -561,12 +759,41 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
               Use @Nome para mencionar e notificar um integrante do grupo.
             </p>
             <div className="flex gap-2">
-              <input
-                value={novoComentario}
-                onChange={(e) => setNovoComentario(e.target.value)}
-                placeholder="Escreva um comentário... (ex: @Maria pode revisar?)"
-                className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
-              />
+              <div className="relative flex-1">
+                <input
+                  ref={comentarioInputRef}
+                  value={novoComentario}
+                  onChange={handleComentarioChange}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setMencaoAtiva(null);
+                    if (e.key === "Enter" && sugestoesMencao.length > 0) {
+                      e.preventDefault();
+                      handleSelecionarMencao(sugestoesMencao[0].user.name);
+                    }
+                  }}
+                  placeholder="Escreva um comentário... (ex: @Maria pode revisar?)"
+                  className="w-full rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+                />
+                {sugestoesMencao.length > 0 && (
+                  <ul className="absolute bottom-full left-0 z-10 mb-1 w-56 rounded-md border border-black/10 bg-background py-1 text-sm shadow-lg dark:border-white/10">
+                    {sugestoesMencao.map((m) => (
+                      <li key={m.user.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelecionarMencao(m.user.name);
+                          }}
+                          className="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-black/5 dark:hover:bg-white/10"
+                        >
+                          <Avatar id={m.user.id} name={m.user.name} />
+                          {m.user.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={enviandoComentario || !novoComentario.trim()}

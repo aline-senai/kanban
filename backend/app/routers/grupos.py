@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_professor
+from app.models.atividade import Atividade
 from app.models.grupo import Grupo, GrupoMembro
 from app.models.turma import Turma
 from app.models.user import User, UserRole
@@ -76,6 +77,28 @@ def update_grupo(
     db.commit()
     db.refresh(grupo)
     return grupo
+
+
+@router.delete("/grupos/{grupo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_grupo(
+    grupo_id: uuid.UUID,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    grupo = _get_owned_grupo(grupo_id, current_user, db)
+    if len(grupo.membros) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Só é possível remover um grupo sem integrantes",
+        )
+    tem_atividades = db.query(Atividade).filter(Atividade.grupo_id == grupo_id).first() is not None
+    if tem_atividades:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Só é possível remover um grupo sem atividades",
+        )
+    db.delete(grupo)
+    db.commit()
 
 
 @router.post(

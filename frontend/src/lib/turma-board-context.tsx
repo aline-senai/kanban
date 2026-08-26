@@ -35,12 +35,14 @@ type TurmaBoardContextValue = {
 
   createGrupo: (nome: string, descricao?: string) => Promise<void>;
   updateGrupo: (grupoId: string, payload: Partial<Pick<Grupo, "nome" | "descricao">>) => Promise<void>;
+  deleteGrupo: (grupoId: string) => Promise<void>;
   addMembro: (grupoId: string, userId: string) => Promise<void>;
   toggleGestor: (grupoId: string, userId: string, isGestor: boolean) => Promise<void>;
   removeMembro: (grupoId: string, userId: string) => Promise<void>;
 
   createAtividade: (grupoId: string, payload: AtividadeCreateInput) => Promise<Atividade>;
   updateAtividade: (atividadeId: string, payload: Partial<AtividadeCreateInput>) => Promise<void>;
+  deleteAtividade: (atividadeId: string) => Promise<void>;
   moverAtividade: (atividadeId: string, estagioId: string) => Promise<void>;
 
   updateTurmaCronograma: (
@@ -138,6 +140,11 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
     setGrupos((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
   }
 
+  async function deleteGrupo(grupoId: string) {
+    await api.deleteGrupo(grupoId);
+    setGrupos((prev) => prev.filter((g) => g.id !== grupoId));
+  }
+
   async function addMembro(grupoId: string, userId: string) {
     const updated = await api.addMembro(grupoId, userId, false);
     setGrupos((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
@@ -162,6 +169,11 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
   async function updateAtividade(atividadeId: string, payload: Partial<AtividadeCreateInput>) {
     const updated = await api.updateAtividade(atividadeId, payload);
     setAtividades((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  }
+
+  async function deleteAtividade(atividadeId: string) {
+    await api.deleteAtividade(atividadeId);
+    setAtividades((prev) => prev.filter((a) => a.id !== atividadeId));
   }
 
   async function moverAtividade(atividadeId: string, estagioId: string) {
@@ -208,11 +220,13 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
         duplicarEstagios,
         createGrupo,
         updateGrupo,
+        deleteGrupo,
         addMembro,
         toggleGestor,
         removeMembro,
         createAtividade,
         updateAtividade,
+        deleteAtividade,
         moverAtividade,
         updateTurmaCronograma,
       }}

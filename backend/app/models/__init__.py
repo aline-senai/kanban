@@ -2,7 +2,7 @@ from app.models.user import User, UserRole
 from app.models.turma import Turma
 from app.models.grupo import Grupo, GrupoMembro
 from app.models.estagio import Estagio
-from app.models.atividade import Atividade, AtividadeResponsavel, AtividadeHistorico
+from app.models.atividade import Atividade, AtividadeResponsavel, AtividadeHistorico, AtividadeVinculo
 from app.models.checklist import ChecklistItem
 from app.models.anexo import Anexo, AnexoVersao
 from app.models.comentario import Comentario
@@ -20,6 +20,7 @@ __all__ = [
     "Atividade",
     "AtividadeResponsavel",
     "AtividadeHistorico",
+    "AtividadeVinculo",
     "ChecklistItem",
     "Anexo",
     "AnexoVersao",
