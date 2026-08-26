@@ -38,17 +38,3 @@ def has_turma_access(turma: Turma, user: User, db: Session) -> bool:
         .first()
         is not None
     )
-
-
-def is_professor_ou_gestor_da_turma(turma: Turma, user: User, db: Session) -> bool:
-    """Sprints/Planning/Review são por turma (não por grupo): professor dono da turma,
-    ou gestor de qualquer grupo dela, podem gerenciar."""
-    if user.role == UserRole.PROFESSOR and turma.professor_id == user.id:
-        return True
-    return (
-        db.query(GrupoMembro)
-        .join(Grupo, GrupoMembro.grupo_id == Grupo.id)
-        .filter(Grupo.turma_id == turma.id, GrupoMembro.user_id == user.id, GrupoMembro.is_gestor.is_(True))
-        .first()
-        is not None
-    )

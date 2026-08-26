@@ -176,6 +176,8 @@ export type AtividadeCreateInput = {
 export type SprintPlanning = {
   id: string;
   sprint_id: string;
+  grupo_id: string;
+  grupo_nome: string;
   data: string | null;
   texto: string | null;
   criado_por: User;
@@ -186,6 +188,8 @@ export type SprintPlanning = {
 export type SprintReview = {
   id: string;
   sprint_id: string;
+  grupo_id: string;
+  grupo_nome: string;
   data: string | null;
   texto: string | null;
   criado_por: User;
@@ -201,8 +205,8 @@ export type Sprint = {
   data_inicio: string | null;
   data_fim: string | null;
   created_at: string;
-  planning: SprintPlanning | null;
-  review: SprintReview | null;
+  plannings: SprintPlanning[];
+  reviews: SprintReview[];
 };
 
 export type SprintCreateInput = {
@@ -435,17 +439,33 @@ export const api = {
       body: JSON.stringify({ sprint_ids: sprintIds }),
     }),
 
-  createPlanning: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
+  createPlanning: (sprintId: string, payload: { grupo_id: string; data?: string | null; texto?: string | null }) =>
     request<SprintPlanning>(`/sprints/${sprintId}/planning`, { method: "POST", body: JSON.stringify(payload) }),
-  updatePlanning: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
-    request<SprintPlanning>(`/sprints/${sprintId}/planning`, { method: "PATCH", body: JSON.stringify(payload) }),
-  deletePlanning: (sprintId: string) => request<void>(`/sprints/${sprintId}/planning`, { method: "DELETE" }),
+  updatePlanning: (
+    sprintId: string,
+    grupoId: string,
+    payload: { data?: string | null; texto?: string | null }
+  ) =>
+    request<SprintPlanning>(`/sprints/${sprintId}/planning/${grupoId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deletePlanning: (sprintId: string, grupoId: string) =>
+    request<void>(`/sprints/${sprintId}/planning/${grupoId}`, { method: "DELETE" }),
 
-  createReview: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
+  createReview: (sprintId: string, payload: { grupo_id: string; data?: string | null; texto?: string | null }) =>
     request<SprintReview>(`/sprints/${sprintId}/review`, { method: "POST", body: JSON.stringify(payload) }),
-  updateReview: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
-    request<SprintReview>(`/sprints/${sprintId}/review`, { method: "PATCH", body: JSON.stringify(payload) }),
-  deleteReview: (sprintId: string) => request<void>(`/sprints/${sprintId}/review`, { method: "DELETE" }),
+  updateReview: (
+    sprintId: string,
+    grupoId: string,
+    payload: { data?: string | null; texto?: string | null }
+  ) =>
+    request<SprintReview>(`/sprints/${sprintId}/review/${grupoId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deleteReview: (sprintId: string, grupoId: string) =>
+    request<void>(`/sprints/${sprintId}/review/${grupoId}`, { method: "DELETE" }),
 
   listPastas: (turmaId: string) => request<PastaCompartilhada[]>(`/turmas/${turmaId}/pastas`),
   createPasta: (turmaId: string, nome: string, url: string) =>

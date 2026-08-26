@@ -23,6 +23,7 @@ class SprintReorderRequest(BaseModel):
 
 
 class PlanningCreate(BaseModel):
+    grupo_id: uuid.UUID
     data: datetime | None = None
     texto: str | None = None
 
@@ -37,6 +38,8 @@ class PlanningOut(BaseModel):
 
     id: uuid.UUID
     sprint_id: uuid.UUID
+    grupo_id: uuid.UUID
+    grupo_nome: str
     data: datetime | None
     texto: str | None
     criado_por: UserOut
@@ -45,6 +48,7 @@ class PlanningOut(BaseModel):
 
 
 class ReviewCreate(BaseModel):
+    grupo_id: uuid.UUID
     data: datetime | None = None
     texto: str | None = None
 
@@ -59,6 +63,8 @@ class ReviewOut(BaseModel):
 
     id: uuid.UUID
     sprint_id: uuid.UUID
+    grupo_id: uuid.UUID
+    grupo_nome: str
     data: datetime | None
     texto: str | None
     criado_por: UserOut
@@ -76,5 +82,5 @@ class SprintOut(BaseModel):
     data_inicio: date | None
     data_fim: date | None
     created_at: datetime
-    planning: PlanningOut | None = None
-    review: ReviewOut | None = None
+    plannings: list[PlanningOut] = []
+    reviews: list[ReviewOut] = []

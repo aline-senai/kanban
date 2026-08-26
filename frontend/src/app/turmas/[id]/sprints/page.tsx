@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTurmaBoard } from "@/lib/turma-board-context";
 import { useViewAs } from "@/lib/view-as-context";
 import { podeGerenciarPlanningReview, podeGerenciarSprints } from "@/lib/permissions";
-import { api, ApiError, type Sprint, type SprintPlanning, type SprintReview } from "@/lib/api";
+import { api, ApiError, type Grupo, type Sprint, type SprintPlanning, type SprintReview } from "@/lib/api";
 
 function formatarPeriodo(dataInicio: string | null, dataFim: string | null): string | null {
   if (!dataInicio && !dataFim) return null;
@@ -17,6 +17,7 @@ function formatarPeriodo(dataInicio: string | null, dataFim: string | null): str
 export default function SprintsPage() {
   const {
     atividades,
+    grupos,
     sprints,
     loading,
     createSprint,
@@ -157,6 +158,7 @@ export default function SprintsPage() {
             <SprintCard
               key={sprint.id}
               sprint={sprint}
+              grupos={grupos}
               podeCriar={podeCriar}
               podePlanningReview={podePlanningReview}
               podeMoverCima={podeCriar && index > 0}
@@ -167,8 +169,8 @@ export default function SprintsPage() {
               onMoveUp={() => handleMove(index, -1)}
               onMoveDown={() => handleMove(index, 1)}
               onError={setError}
-              onPlanningChange={(planning) => updateSprintLocal(sprint.id, { planning })}
-              onReviewChange={(review) => updateSprintLocal(sprint.id, { review })}
+              onPlanningsChange={(plannings) => updateSprintLocal(sprint.id, { plannings })}
+              onReviewsChange={(reviews) => updateSprintLocal(sprint.id, { reviews })}
             />
           ))}
         </div>
@@ -179,6 +181,7 @@ export default function SprintsPage() {
 
 function SprintCard({
   sprint,
+  grupos,
   podeCriar,
   podePlanningReview,
   podeMoverCima,
@@ -189,10 +192,11 @@ function SprintCard({
   onMoveUp,
   onMoveDown,
   onError,
-  onPlanningChange,
-  onReviewChange,
+  onPlanningsChange,
+  onReviewsChange,
 }: {
   sprint: Sprint;
+  grupos: Grupo[];
   podeCriar: boolean;
   podePlanningReview: boolean;
   podeMoverCima: boolean;
@@ -203,8 +207,8 @@ function SprintCard({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onError: (msg: string) => void;
-  onPlanningChange: (planning: SprintPlanning | null) => void;
-  onReviewChange: (review: SprintReview | null) => void;
+  onPlanningsChange: (plannings: SprintPlanning[]) => void;
+  onReviewsChange: (reviews: SprintReview[]) => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [nome, setNome] = useState(sprint.nome);
@@ -232,19 +236,41 @@ function SprintCard({
     }
   }
 
+  function handlePlanningChange(grupoId: string, novo: SprintPlanning | null) {
+    const semEssa = sprint.plannings.filter((p) => p.grupo_id !== grupoId);
+    onPlanningsChange(novo ? [...semEssa, novo] : semEssa);
+  }
+
+  function handleReviewChange(grupoId: string, novo: SprintReview | null) {
+    const semEssa = sprint.reviews.filter((r) => r.grupo_id !== grupoId);
+    onReviewsChange(novo ? [...semEssa, novo] : semEssa);
+  }
+
   const periodo = formatarPeriodo(sprint.data_inicio, sprint.data_fim);
 
   return (
     <div className="space-y-4 rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-3">
           {podeCriar && (
-            <div className="flex flex-col text-xs text-black/40 dark:text-white/40">
-              <button onClick={onMoveUp} disabled={!podeMoverCima} className="disabled:opacity-30" title="Mover para cima">
-                ↑
+            <div className="flex flex-col gap-1 pt-0.5">
+              <button
+                onClick={onMoveUp}
+                disabled={!podeMoverCima}
+                title="Mover sprint para cima"
+                aria-label="Mover sprint para cima"
+                className="flex h-6 w-6 items-center justify-center rounded border border-black/20 text-xs leading-none hover:bg-black/5 disabled:opacity-25 disabled:hover:bg-transparent dark:border-white/25 dark:hover:bg-white/10"
+              >
+                ▲
               </button>
-              <button onClick={onMoveDown} disabled={!podeMoverBaixo} className="disabled:opacity-30" title="Mover para baixo">
-                ↓
+              <button
+                onClick={onMoveDown}
+                disabled={!podeMoverBaixo}
+                title="Mover sprint para baixo"
+                aria-label="Mover sprint para baixo"
+                className="flex h-6 w-6 items-center justify-center rounded border border-black/20 text-xs leading-none hover:bg-black/5 disabled:opacity-25 disabled:hover:bg-transparent dark:border-white/25 dark:hover:bg-white/10"
+              >
+                ▼
               </button>
             </div>
           )}
@@ -311,30 +337,47 @@ function SprintCard({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <PlanningReviewSection
-          titulo="Planning"
-          placeholder="Metas e itens planejados para esta sprint..."
-          dado={sprint.planning}
-          podeGerenciar={podePlanningReview}
-          onError={onError}
-          onCreate={(payload) => api.createPlanning(sprint.id, payload)}
-          onUpdate={(payload) => api.updatePlanning(sprint.id, payload)}
-          onDelete={() => api.deletePlanning(sprint.id)}
-          onChange={onPlanningChange}
-        />
-        <PlanningReviewSection
-          titulo="Review"
-          placeholder="Resultados e observações desta sprint..."
-          dado={sprint.review}
-          podeGerenciar={podePlanningReview}
-          onError={onError}
-          onCreate={(payload) => api.createReview(sprint.id, payload)}
-          onUpdate={(payload) => api.updateReview(sprint.id, payload)}
-          onDelete={() => api.deleteReview(sprint.id)}
-          onChange={onReviewChange}
-        />
-      </div>
+      {grupos.length === 0 ? (
+        <p className="text-sm text-black/50 dark:text-white/50">
+          Nenhuma equipe cadastrada ainda para ter planning/review.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {grupos.map((grupo) => (
+            <div key={grupo.id} className="space-y-2">
+              {grupos.length > 1 && (
+                <p className="text-xs font-medium uppercase tracking-wide text-black/40 dark:text-white/40">
+                  {grupo.nome}
+                </p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <PlanningReviewSection
+                  titulo="Planning"
+                  placeholder="Metas e itens planejados para esta sprint..."
+                  dado={sprint.plannings.find((p) => p.grupo_id === grupo.id) ?? null}
+                  podeGerenciar={podePlanningReview}
+                  onError={onError}
+                  onCreate={(payload) => api.createPlanning(sprint.id, { ...payload, grupo_id: grupo.id })}
+                  onUpdate={(payload) => api.updatePlanning(sprint.id, grupo.id, payload)}
+                  onDelete={() => api.deletePlanning(sprint.id, grupo.id)}
+                  onChange={(novo) => handlePlanningChange(grupo.id, novo)}
+                />
+                <PlanningReviewSection
+                  titulo="Review"
+                  placeholder="Resultados e observações desta sprint..."
+                  dado={sprint.reviews.find((r) => r.grupo_id === grupo.id) ?? null}
+                  podeGerenciar={podePlanningReview}
+                  onError={onError}
+                  onCreate={(payload) => api.createReview(sprint.id, { ...payload, grupo_id: grupo.id })}
+                  onUpdate={(payload) => api.updateReview(sprint.id, grupo.id, payload)}
+                  onDelete={() => api.deleteReview(sprint.id, grupo.id)}
+                  onChange={(novo) => handleReviewChange(grupo.id, novo)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-1">
         <p className="text-sm font-medium">Atividades da sprint</p>
@@ -409,7 +452,7 @@ function PlanningReviewSection<T extends PlanningOuReview>({
   }
 
   async function handleRemover() {
-    if (!window.confirm(`Remover ${titulo.toLowerCase()} desta sprint?`)) return;
+    if (!window.confirm(`Remover ${titulo.toLowerCase()} desta equipe nesta sprint?`)) return;
     setSalvando(true);
     try {
       await onDelete();
