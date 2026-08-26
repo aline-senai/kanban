@@ -11,9 +11,12 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_professor
 from app.core.permissions import has_turma_access
 from app.models.material import Material
+from app.models.pasta_compartilhada import PastaCompartilhada
 from app.models.turma import Turma
 from app.models.user import User
+from app.routers.turmas import get_owned_turma
 from app.schemas.material import MaterialOut
+from app.schemas.pasta_compartilhada import PastaCompartilhadaCreate, PastaCompartilhadaOut
 
 router = APIRouter(tags=["materiais"])
 
@@ -118,4 +121,49 @@ def delete_material(
         os.remove(material.arquivo_path)
 
     db.delete(material)
+    db.commit()
+
+
+@router.get("/turmas/{turma_id}/pastas", response_model=list[PastaCompartilhadaOut])
+def list_pastas(
+    turma_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    turma = _get_turma_or_404(turma_id, db)
+    if not has_turma_access(turma, current_user, db):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem acesso a esta turma")
+    return (
+        db.query(PastaCompartilhada)
+        .filter(PastaCompartilhada.turma_id == turma_id)
+        .order_by(PastaCompartilhada.created_at.desc())
+        .all()
+    )
+
+
+@router.post(
+    "/turmas/{turma_id}/pastas", response_model=PastaCompartilhadaOut, status_code=status.HTTP_201_CREATED
+)
+def create_pasta(
+    turma_id: uuid.UUID,
+    payload: PastaCompartilhadaCreate,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    get_owned_turma(turma_id, current_user, db)
+    pasta = PastaCompartilhada(
+        turma_id=turma_id, nome=payload.nome, url=payload.url, criado_por_id=current_user.id
+    )
+    db.add(pasta)
+    db.commit()
+    db.refresh(pasta)
+    return pasta
+
+
+@router.delete("/pastas/{pasta_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_pasta(
+    pasta_id: uuid.UUID, current_user: User = Depends(require_professor), db: Session = Depends(get_db)
+):
+    pasta = db.get(PastaCompartilhada, pasta_id)
+    if pasta is None or pasta.turma.professor_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pasta não encontrada")
+    db.delete(pasta)
     db.commit()

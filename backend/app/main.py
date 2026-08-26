@@ -14,6 +14,7 @@ from app.routers import (
     materiais,
     notificacoes,
     relatorios,
+    sprints,
     turmas,
     users,
 )
@@ -41,3 +42,4 @@ app.include_router(materiais.router)
 app.include_router(comentarios.router)
 app.include_router(notificacoes.router)
 app.include_router(relatorios.router)
+app.include_router(sprints.router)

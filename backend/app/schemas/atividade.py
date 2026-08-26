@@ -16,6 +16,7 @@ class AtividadeCreate(BaseModel):
     responsavel_ids: list[uuid.UUID] = []
     prioridade: Prioridade = Prioridade.MEDIA
     estimativa_horas: int | None = None
+    sprint_id: uuid.UUID | None = None
 
 
 class AtividadeUpdate(BaseModel):
@@ -26,6 +27,7 @@ class AtividadeUpdate(BaseModel):
     responsavel_ids: list[uuid.UUID] | None = None
     prioridade: Prioridade | None = None
     estimativa_horas: int | None = None
+    sprint_id: uuid.UUID | None = None
 
 
 class AtividadeOut(BaseModel):
@@ -46,6 +48,8 @@ class AtividadeOut(BaseModel):
     data_fim: datetime | None
     responsaveis: list[UserOut] = Field(validation_alias="responsaveis_users")
     criador: UserOut
+    sprint_id: uuid.UUID | None
+    sprint_nome: str | None
 
 
 class MoverAtividadeRequest(BaseModel):

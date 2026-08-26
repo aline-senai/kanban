@@ -11,6 +11,7 @@ from app.core.permissions import can_manage_grupo, has_turma_access, is_member_o
 from app.models.atividade import Atividade, AtividadeHistorico, AtividadeResponsavel, AtividadeVinculo
 from app.models.estagio import Estagio
 from app.models.grupo import Grupo, GrupoMembro
+from app.models.sprint import Sprint
 from app.models.user import User
 from app.services.notificacoes import notificar_atribuicao
 from app.schemas.atividade import (
@@ -32,6 +33,12 @@ def _get_grupo_or_404(grupo_id: uuid.UUID, db: Session) -> Grupo:
     if grupo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grupo não encontrado")
     return grupo
+
+
+def _validate_sprint(turma_id: uuid.UUID, sprint_id: uuid.UUID, db: Session):
+    sprint = db.get(Sprint, sprint_id)
+    if sprint is None or sprint.turma_id != turma_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sprint inválida para esta turma")
 
 
 def _validate_responsaveis(grupo_id: uuid.UUID, responsavel_ids: list[uuid.UUID], db: Session):
@@ -77,6 +84,8 @@ def create_atividade(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Estágio inválido para esta turma")
 
     _validate_responsaveis(grupo_id, payload.responsavel_ids, db)
+    if payload.sprint_id is not None:
+        _validate_sprint(grupo.turma_id, payload.sprint_id, db)
 
     proximo_numero = (
         db.query(func.coalesce(func.max(Atividade.numero), 0))
@@ -97,6 +106,7 @@ def create_atividade(
         data_fim=payload.data_fim,
         prioridade=payload.prioridade,
         estimativa_horas=payload.estimativa_horas,
+        sprint_id=payload.sprint_id,
     )
     db.add(atividade)
     db.flush()
@@ -143,6 +153,10 @@ def update_atividade(
         atividade.prioridade = payload.prioridade
     if payload.estimativa_horas is not None:
         atividade.estimativa_horas = payload.estimativa_horas
+    if "sprint_id" in payload.model_fields_set:
+        if payload.sprint_id is not None:
+            _validate_sprint(atividade.grupo.turma_id, payload.sprint_id, db)
+        atividade.sprint_id = payload.sprint_id
 
     if payload.responsavel_ids is not None:
         _validate_responsaveis(atividade.grupo_id, payload.responsavel_ids, db)

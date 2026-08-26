@@ -15,6 +15,7 @@ import { NotificationsBell } from "./NotificationsBell";
 const NAV_ITEMS = [
   { slug: "quadro", label: "Quadro" },
   { slug: "lista", label: "Lista" },
+  { slug: "sprints", label: "Sprints" },
   { slug: "cronograma", label: "Cronograma" },
   { slug: "equipe", label: "Equipe e grupos" },
   { slug: "materiais", label: "Materiais" },
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
 const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   quadro: { title: "Quadro da turma", subtitle: "Arraste os cards entre os estágios" },
   lista: { title: "Lista de atividades", subtitle: "Ordenada por prazo · clique para abrir o detalhe" },
+  sprints: { title: "Sprints", subtitle: "Planning, review e atividades de cada sprint" },
   cronograma: { title: "Cronograma", subtitle: "Linha do tempo das sprints" },
   equipe: { title: "Equipe e grupos", subtitle: "Grupos, gestores e estágios do quadro" },
   materiais: { title: "Materiais", subtitle: "Pasta da turma com os arquivos modelo" },
@@ -158,13 +160,14 @@ export function AppShell({ turmaId, children }: { turmaId: string; children: Rea
 }
 
 function NovaAtividadeModal({ onClose }: { onClose: () => void }) {
-  const { grupos, estagios, createAtividade } = useTurmaBoard();
+  const { grupos, estagios, sprints, createAtividade } = useTurmaBoard();
   const [grupoId, setGrupoId] = useState(grupos[0]?.id ?? "");
   const [estagioId, setEstagioId] = useState(estagios[0]?.id ?? "");
   const [nome, setNome] = useState("");
   const [prioridade, setPrioridade] = useState<Prioridade>("media");
   const [estimativa, setEstimativa] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [sprintId, setSprintId] = useState("");
   const [responsaveis, setResponsaveis] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -187,6 +190,7 @@ function NovaAtividadeModal({ onClose }: { onClose: () => void }) {
         prioridade,
         estimativa_horas: estimativa ? Number(estimativa) : null,
         data_fim: dataFim ? new Date(dataFim).toISOString() : null,
+        sprint_id: sprintId || null,
         responsavel_ids: responsaveis,
       });
       onClose();
@@ -290,6 +294,24 @@ function NovaAtividadeModal({ onClose }: { onClose: () => void }) {
             />
           </div>
         </div>
+
+        {sprints.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Sprint</label>
+            <select
+              value={sprintId}
+              onChange={(e) => setSprintId(e.target.value)}
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+            >
+              <option value="">Nenhuma</option>
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {grupoAtual && grupoAtual.membros.length > 0 && (
           <div className="space-y-1">

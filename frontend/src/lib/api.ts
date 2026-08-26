@@ -130,6 +130,8 @@ export type Atividade = {
   data_fim: string | null;
   responsaveis: User[];
   criador: User;
+  sprint_id: string | null;
+  sprint_nome: string | null;
 };
 
 export type AtividadeResumo = {
@@ -168,6 +170,45 @@ export type AtividadeCreateInput = {
   responsavel_ids?: string[];
   prioridade?: Prioridade;
   estimativa_horas?: number | null;
+  sprint_id?: string | null;
+};
+
+export type SprintPlanning = {
+  id: string;
+  sprint_id: string;
+  data: string | null;
+  texto: string | null;
+  criado_por: User;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type SprintReview = {
+  id: string;
+  sprint_id: string;
+  data: string | null;
+  texto: string | null;
+  criado_por: User;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type Sprint = {
+  id: string;
+  turma_id: string;
+  nome: string;
+  ordem: number;
+  created_at: string;
+  planning: SprintPlanning | null;
+  review: SprintReview | null;
+};
+
+export type PastaCompartilhada = {
+  id: string;
+  turma_id: string;
+  nome: string;
+  url: string;
+  created_at: string;
 };
 
 export type ChecklistItem = {
@@ -367,6 +408,33 @@ export const api = {
   },
   downloadAnexoVersao: (versaoId: string, nomeArquivo: string) =>
     downloadFile(`/anexo-versoes/${versaoId}/download`, nomeArquivo),
+
+  listSprints: (turmaId: string) => request<Sprint[]>(`/turmas/${turmaId}/sprints`),
+  createSprint: (turmaId: string, nome: string) =>
+    request<Sprint>(`/turmas/${turmaId}/sprints`, { method: "POST", body: JSON.stringify({ nome }) }),
+  updateSprint: (sprintId: string, nome: string) =>
+    request<Sprint>(`/sprints/${sprintId}`, { method: "PATCH", body: JSON.stringify({ nome }) }),
+  deleteSprint: (sprintId: string) => request<void>(`/sprints/${sprintId}`, { method: "DELETE" }),
+
+  createPlanning: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
+    request<SprintPlanning>(`/sprints/${sprintId}/planning`, { method: "POST", body: JSON.stringify(payload) }),
+  updatePlanning: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
+    request<SprintPlanning>(`/sprints/${sprintId}/planning`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deletePlanning: (sprintId: string) => request<void>(`/sprints/${sprintId}/planning`, { method: "DELETE" }),
+
+  createReview: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
+    request<SprintReview>(`/sprints/${sprintId}/review`, { method: "POST", body: JSON.stringify(payload) }),
+  updateReview: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
+    request<SprintReview>(`/sprints/${sprintId}/review`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteReview: (sprintId: string) => request<void>(`/sprints/${sprintId}/review`, { method: "DELETE" }),
+
+  listPastas: (turmaId: string) => request<PastaCompartilhada[]>(`/turmas/${turmaId}/pastas`),
+  createPasta: (turmaId: string, nome: string, url: string) =>
+    request<PastaCompartilhada>(`/turmas/${turmaId}/pastas`, {
+      method: "POST",
+      body: JSON.stringify({ nome, url }),
+    }),
+  deletePasta: (pastaId: string) => request<void>(`/pastas/${pastaId}`, { method: "DELETE" }),
 
   listMateriais: (turmaId: string) => request<Material[]>(`/turmas/${turmaId}/materiais`),
   uploadMaterial: (turmaId: string, file: File, nome?: string, isModelo = true) => {

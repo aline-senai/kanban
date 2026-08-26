@@ -8,6 +8,7 @@ import {
   type AtividadeCreateInput,
   type Estagio,
   type Grupo,
+  type Sprint,
   type Turma,
 } from "./api";
 
@@ -18,6 +19,7 @@ type TurmaBoardContextValue = {
   estagios: Estagio[];
   grupos: Grupo[];
   atividades: Atividade[];
+  sprints: Sprint[];
   loading: boolean;
   error: string | null;
   setError: (error: string | null) => void;
@@ -45,6 +47,11 @@ type TurmaBoardContextValue = {
   deleteAtividade: (atividadeId: string) => Promise<void>;
   moverAtividade: (atividadeId: string, estagioId: string) => Promise<void>;
 
+  createSprint: (nome: string) => Promise<Sprint>;
+  updateSprint: (sprintId: string, nome: string) => Promise<void>;
+  deleteSprint: (sprintId: string) => Promise<void>;
+  updateSprintLocal: (sprintId: string, patch: Partial<Sprint>) => void;
+
   updateTurmaCronograma: (
     payload: Partial<
       Pick<Turma, "cronograma_inicio" | "duracao_sprint_semanas" | "total_sprints" | "sprint_atual">
@@ -64,6 +71,7 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
   const [estagios, setEstagios] = useState<Estagio[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [atividades, setAtividades] = useState<Atividade[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,15 +88,17 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
   async function refreshAll() {
     setLoading(true);
     try {
-      const [turmasData, estagiosData, gruposData] = await Promise.all([
+      const [turmasData, estagiosData, gruposData, sprintsData] = await Promise.all([
         api.listTurmas(),
         api.listEstagios(turmaId),
         api.listGrupos(turmaId),
+        api.listSprints(turmaId),
       ]);
       setTurma(turmasData.find((t) => t.id === turmaId) ?? null);
       setOutrasTurmas(turmasData.filter((t) => t.id !== turmaId));
       setEstagios(estagiosData);
       setGrupos(gruposData);
+      setSprints(sprintsData);
       await refreshAtividades(gruposData);
     } catch (err) {
       setError(errMsg(err, "Erro ao carregar o quadro"));
@@ -190,6 +200,26 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
     }
   }
 
+  async function createSprint(nome: string) {
+    const sprint = await api.createSprint(turmaId, nome);
+    setSprints((prev) => [...prev, sprint]);
+    return sprint;
+  }
+
+  async function updateSprint(sprintId: string, nome: string) {
+    const updated = await api.updateSprint(sprintId, nome);
+    setSprints((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  }
+
+  async function deleteSprint(sprintId: string) {
+    await api.deleteSprint(sprintId);
+    setSprints((prev) => prev.filter((s) => s.id !== sprintId));
+  }
+
+  function updateSprintLocal(sprintId: string, patch: Partial<Sprint>) {
+    setSprints((prev) => prev.map((s) => (s.id === sprintId ? { ...s, ...patch } : s)));
+  }
+
   async function updateTurmaCronograma(
     payload: Partial<
       Pick<Turma, "cronograma_inicio" | "duracao_sprint_semanas" | "total_sprints" | "sprint_atual">
@@ -208,6 +238,7 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
         estagios,
         grupos,
         atividades,
+        sprints,
         loading,
         error,
         setError,
@@ -228,6 +259,10 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
         updateAtividade,
         deleteAtividade,
         moverAtividade,
+        createSprint,
+        updateSprint,
+        deleteSprint,
+        updateSprintLocal,
         updateTurmaCronograma,
       }}
     >

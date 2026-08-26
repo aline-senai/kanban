@@ -18,3 +18,11 @@ export function podeGerenciarGrupos(effectiveRole: EffectiveRole): boolean {
 export function podeGerenciarMateriais(effectiveRole: EffectiveRole): boolean {
   return effectiveRole === "professor";
 }
+
+export function podeGerenciarSprints(effectiveRole: EffectiveRole): boolean {
+  return effectiveRole === "professor";
+}
+
+export function podeGerenciarPlanningReview(effectiveRole: EffectiveRole): boolean {
+  return effectiveRole === "professor" || effectiveRole === "gestor";
+}
