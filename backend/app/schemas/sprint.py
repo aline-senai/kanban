@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,13 +8,22 @@ from app.schemas.user import UserOut
 
 class SprintCreate(BaseModel):
     nome: str
+    data_inicio: date | None = None
+    data_fim: date | None = None
 
 
 class SprintUpdate(BaseModel):
     nome: str | None = None
+    data_inicio: date | None = None
+    data_fim: date | None = None
+
+
+class SprintReorderRequest(BaseModel):
+    sprint_ids: list[uuid.UUID]
 
 
 class PlanningCreate(BaseModel):
+    grupo_id: uuid.UUID
     data: datetime | None = None
     texto: str | None = None
 
@@ -29,6 +38,8 @@ class PlanningOut(BaseModel):
 
     id: uuid.UUID
     sprint_id: uuid.UUID
+    grupo_id: uuid.UUID
+    grupo_nome: str
     data: datetime | None
     texto: str | None
     criado_por: UserOut
@@ -37,6 +48,7 @@ class PlanningOut(BaseModel):
 
 
 class ReviewCreate(BaseModel):
+    grupo_id: uuid.UUID
     data: datetime | None = None
     texto: str | None = None
 
@@ -51,6 +63,8 @@ class ReviewOut(BaseModel):
 
     id: uuid.UUID
     sprint_id: uuid.UUID
+    grupo_id: uuid.UUID
+    grupo_nome: str
     data: datetime | None
     texto: str | None
     criado_por: UserOut
@@ -65,6 +79,8 @@ class SprintOut(BaseModel):
     turma_id: uuid.UUID
     nome: str
     ordem: int
+    data_inicio: date | None
+    data_fim: date | None
     created_at: datetime
-    planning: PlanningOut | None = None
-    review: ReviewOut | None = None
+    plannings: list[PlanningOut] = []
+    reviews: list[ReviewOut] = []

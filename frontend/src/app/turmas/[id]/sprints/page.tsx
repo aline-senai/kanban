@@ -4,17 +4,36 @@ import { useState } from "react";
 import { useTurmaBoard } from "@/lib/turma-board-context";
 import { useViewAs } from "@/lib/view-as-context";
 import { podeGerenciarPlanningReview, podeGerenciarSprints } from "@/lib/permissions";
-import { api, ApiError, type Sprint, type SprintPlanning, type SprintReview } from "@/lib/api";
+import { api, ApiError, type Grupo, type Sprint, type SprintPlanning, type SprintReview } from "@/lib/api";
+
+function formatarPeriodo(dataInicio: string | null, dataFim: string | null): string | null {
+  if (!dataInicio && !dataFim) return null;
+  const fmt = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR");
+  if (dataInicio && dataFim) return `${fmt(dataInicio)} – ${fmt(dataFim)}`;
+  if (dataInicio) return `A partir de ${fmt(dataInicio)}`;
+  return `Até ${fmt(dataFim!)}`;
+}
 
 export default function SprintsPage() {
-  const { atividades, sprints, loading, createSprint, updateSprint, deleteSprint, updateSprintLocal } =
-    useTurmaBoard();
+  const {
+    atividades,
+    grupos,
+    sprints,
+    loading,
+    createSprint,
+    updateSprint,
+    deleteSprint,
+    reorderSprints,
+    updateSprintLocal,
+  } = useTurmaBoard();
   const { effectiveRole } = useViewAs();
   const podeCriar = podeGerenciarSprints(effectiveRole);
   const podePlanningReview = podeGerenciarPlanningReview(effectiveRole);
 
   const [error, setError] = useState<string | null>(null);
   const [novoNome, setNovoNome] = useState("");
+  const [novoInicio, setNovoInicio] = useState("");
+  const [novoFim, setNovoFim] = useState("");
   const [criando, setCriando] = useState(false);
 
   async function handleCreate(e: React.FormEvent) {
@@ -23,8 +42,14 @@ export default function SprintsPage() {
     setError(null);
     setCriando(true);
     try {
-      await createSprint(novoNome.trim());
+      await createSprint({
+        nome: novoNome.trim(),
+        data_inicio: novoInicio || null,
+        data_fim: novoFim || null,
+      });
       setNovoNome("");
+      setNovoInicio("");
+      setNovoFim("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao criar sprint");
     } finally {
@@ -32,14 +57,16 @@ export default function SprintsPage() {
     }
   }
 
-  async function handleRename(sprint: Sprint) {
-    const novoNomeSprint = window.prompt("Novo nome da sprint", sprint.nome);
-    if (!novoNomeSprint || !novoNomeSprint.trim() || novoNomeSprint === sprint.nome) return;
+  async function handleSalvarEdicao(
+    sprint: Sprint,
+    payload: { nome: string; data_inicio: string | null; data_fim: string | null }
+  ) {
     setError(null);
     try {
-      await updateSprint(sprint.id, novoNomeSprint.trim());
+      await updateSprint(sprint.id, payload);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Erro ao renomear sprint");
+      setError(err instanceof ApiError ? err.message : "Erro ao salvar sprint");
+      throw err;
     }
   }
 
@@ -50,6 +77,19 @@ export default function SprintsPage() {
       await deleteSprint(sprint.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao remover sprint");
+    }
+  }
+
+  async function handleMove(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= sprints.length) return;
+    const reordenadas = [...sprints];
+    [reordenadas[index], reordenadas[target]] = [reordenadas[target], reordenadas[index]];
+    setError(null);
+    try {
+      await reorderSprints(reordenadas.map((s) => s.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao reordenar sprints");
     }
   }
 
@@ -68,21 +108,41 @@ export default function SprintsPage() {
       {podeCriar && (
         <form
           onSubmit={handleCreate}
-          className="flex flex-wrap items-center gap-2 rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-slate-900"
+          className="space-y-2 rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-slate-900"
         >
           <input
             value={novoNome}
             onChange={(e) => setNovoNome(e.target.value)}
             placeholder="Nome da sprint (ex: Sprint 1)"
-            className="flex-1 rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+            className="w-full rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
           />
-          <button
-            type="submit"
-            disabled={!novoNome.trim() || criando}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {criando ? "Criando..." : "Criar sprint"}
-          </button>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="space-y-1 text-xs text-black/50 dark:text-white/50">
+              Início (opcional)
+              <input
+                type="date"
+                value={novoInicio}
+                onChange={(e) => setNovoInicio(e.target.value)}
+                className="block rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+              />
+            </label>
+            <label className="space-y-1 text-xs text-black/50 dark:text-white/50">
+              Fim (opcional)
+              <input
+                type="date"
+                value={novoFim}
+                onChange={(e) => setNovoFim(e.target.value)}
+                className="block rounded-md border border-black/15 px-3 py-2 text-sm dark:border-white/15 dark:bg-transparent"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={!novoNome.trim() || criando}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {criando ? "Criando..." : "Criar sprint"}
+            </button>
+          </div>
         </form>
       )}
 
@@ -94,18 +154,23 @@ export default function SprintsPage() {
         </p>
       ) : (
         <div className="space-y-4">
-          {sprints.map((sprint) => (
+          {sprints.map((sprint, index) => (
             <SprintCard
               key={sprint.id}
               sprint={sprint}
+              grupos={grupos}
               podeCriar={podeCriar}
               podePlanningReview={podePlanningReview}
+              podeMoverCima={podeCriar && index > 0}
+              podeMoverBaixo={podeCriar && index < sprints.length - 1}
               atividades={atividadesPorSprint.get(sprint.id) ?? []}
-              onRename={() => handleRename(sprint)}
+              onSalvarEdicao={(payload) => handleSalvarEdicao(sprint, payload)}
               onDelete={() => handleDelete(sprint)}
+              onMoveUp={() => handleMove(index, -1)}
+              onMoveDown={() => handleMove(index, 1)}
               onError={setError}
-              onPlanningChange={(planning) => updateSprintLocal(sprint.id, { planning })}
-              onReviewChange={(review) => updateSprintLocal(sprint.id, { review })}
+              onPlanningsChange={(plannings) => updateSprintLocal(sprint.id, { plannings })}
+              onReviewsChange={(reviews) => updateSprintLocal(sprint.id, { reviews })}
             />
           ))}
         </div>
@@ -116,72 +181,203 @@ export default function SprintsPage() {
 
 function SprintCard({
   sprint,
+  grupos,
   podeCriar,
   podePlanningReview,
+  podeMoverCima,
+  podeMoverBaixo,
   atividades,
-  onRename,
+  onSalvarEdicao,
   onDelete,
+  onMoveUp,
+  onMoveDown,
   onError,
-  onPlanningChange,
-  onReviewChange,
+  onPlanningsChange,
+  onReviewsChange,
 }: {
   sprint: Sprint;
+  grupos: Grupo[];
   podeCriar: boolean;
   podePlanningReview: boolean;
+  podeMoverCima: boolean;
+  podeMoverBaixo: boolean;
   atividades: ReturnType<typeof useTurmaBoard>["atividades"];
-  onRename: () => void;
+  onSalvarEdicao: (payload: { nome: string; data_inicio: string | null; data_fim: string | null }) => Promise<void>;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onError: (msg: string) => void;
-  onPlanningChange: (planning: SprintPlanning | null) => void;
-  onReviewChange: (review: SprintReview | null) => void;
+  onPlanningsChange: (plannings: SprintPlanning[]) => void;
+  onReviewsChange: (reviews: SprintReview[]) => void;
 }) {
+  const [editando, setEditando] = useState(false);
+  const [nome, setNome] = useState(sprint.nome);
+  const [dataInicio, setDataInicio] = useState(sprint.data_inicio ?? "");
+  const [dataFim, setDataFim] = useState(sprint.data_fim ?? "");
+  const [salvando, setSalvando] = useState(false);
+
+  function iniciarEdicao() {
+    setNome(sprint.nome);
+    setDataInicio(sprint.data_inicio ?? "");
+    setDataFim(sprint.data_fim ?? "");
+    setEditando(true);
+  }
+
+  async function handleSalvar() {
+    if (!nome.trim()) return;
+    setSalvando(true);
+    try {
+      await onSalvarEdicao({ nome: nome.trim(), data_inicio: dataInicio || null, data_fim: dataFim || null });
+      setEditando(false);
+    } catch {
+      // erro já reportado pelo chamador
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  function handlePlanningChange(grupoId: string, novo: SprintPlanning | null) {
+    const semEssa = sprint.plannings.filter((p) => p.grupo_id !== grupoId);
+    onPlanningsChange(novo ? [...semEssa, novo] : semEssa);
+  }
+
+  function handleReviewChange(grupoId: string, novo: SprintReview | null) {
+    const semEssa = sprint.reviews.filter((r) => r.grupo_id !== grupoId);
+    onReviewsChange(novo ? [...semEssa, novo] : semEssa);
+  }
+
+  const periodo = formatarPeriodo(sprint.data_inicio, sprint.data_fim);
+
   return (
     <div className="space-y-4 rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
       <div className="flex items-start justify-between gap-2">
-        <div>
-          {podeCriar ? (
-            <button onClick={onRename} className="text-base font-semibold hover:underline">
-              {sprint.nome}
-            </button>
-          ) : (
-            <h2 className="text-base font-semibold">{sprint.nome}</h2>
+        <div className="flex items-start gap-3">
+          {podeCriar && (
+            <div className="flex flex-col gap-1 pt-0.5">
+              <button
+                onClick={onMoveUp}
+                disabled={!podeMoverCima}
+                title="Mover sprint para cima"
+                aria-label="Mover sprint para cima"
+                className="flex h-6 w-6 items-center justify-center rounded border border-black/20 text-xs leading-none hover:bg-black/5 disabled:opacity-25 disabled:hover:bg-transparent dark:border-white/25 dark:hover:bg-white/10"
+              >
+                ▲
+              </button>
+              <button
+                onClick={onMoveDown}
+                disabled={!podeMoverBaixo}
+                title="Mover sprint para baixo"
+                aria-label="Mover sprint para baixo"
+                className="flex h-6 w-6 items-center justify-center rounded border border-black/20 text-xs leading-none hover:bg-black/5 disabled:opacity-25 disabled:hover:bg-transparent dark:border-white/25 dark:hover:bg-white/10"
+              >
+                ▼
+              </button>
+            </div>
           )}
-          <p className="text-xs text-black/50 dark:text-white/50">
-            {atividades.length} atividade{atividades.length === 1 ? "" : "s"} vinculada
-            {atividades.length === 1 ? "" : "s"}
-          </p>
+          <div>
+            {editando ? (
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                autoFocus
+                className="rounded-md border border-black/15 px-2 py-1 text-base font-semibold dark:border-white/15 dark:bg-transparent"
+              />
+            ) : (
+              <h2 className="text-base font-semibold">{sprint.nome}</h2>
+            )}
+            <p className="text-xs text-black/50 dark:text-white/50">
+              {atividades.length} atividade{atividades.length === 1 ? "" : "s"} vinculada
+              {atividades.length === 1 ? "" : "s"}
+              {periodo && !editando ? ` · ${periodo}` : ""}
+            </p>
+          </div>
         </div>
-        {podeCriar && (
-          <button onClick={onDelete} className="text-xs text-red-600 underline dark:text-red-400">
-            excluir
-          </button>
+        {podeCriar && !editando && (
+          <span className="flex shrink-0 gap-3 text-xs">
+            <button onClick={iniciarEdicao} className="underline">
+              editar
+            </button>
+            <button onClick={onDelete} className="text-red-600 underline dark:text-red-400">
+              excluir
+            </button>
+          </span>
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <PlanningReviewSection
-          titulo="Planning"
-          placeholder="Metas e itens planejados para esta sprint..."
-          dado={sprint.planning}
-          podeGerenciar={podePlanningReview}
-          onError={onError}
-          onCreate={(payload) => api.createPlanning(sprint.id, payload)}
-          onUpdate={(payload) => api.updatePlanning(sprint.id, payload)}
-          onDelete={() => api.deletePlanning(sprint.id)}
-          onChange={onPlanningChange}
-        />
-        <PlanningReviewSection
-          titulo="Review"
-          placeholder="Resultados e observações desta sprint..."
-          dado={sprint.review}
-          podeGerenciar={podePlanningReview}
-          onError={onError}
-          onCreate={(payload) => api.createReview(sprint.id, payload)}
-          onUpdate={(payload) => api.updateReview(sprint.id, payload)}
-          onDelete={() => api.deleteReview(sprint.id)}
-          onChange={onReviewChange}
-        />
-      </div>
+      {editando && (
+        <div className="flex flex-wrap items-end gap-2 rounded-md border border-black/10 p-3 dark:border-white/10">
+          <label className="space-y-1 text-xs text-black/50 dark:text-white/50">
+            Início
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="block rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+            />
+          </label>
+          <label className="space-y-1 text-xs text-black/50 dark:text-white/50">
+            Fim
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="block rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+            />
+          </label>
+          <button
+            onClick={handleSalvar}
+            disabled={salvando || !nome.trim()}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+          >
+            {salvando ? "Salvando..." : "Salvar"}
+          </button>
+          <button onClick={() => setEditando(false)} className="text-xs underline">
+            cancelar
+          </button>
+        </div>
+      )}
+
+      {grupos.length === 0 ? (
+        <p className="text-sm text-black/50 dark:text-white/50">
+          Nenhuma equipe cadastrada ainda para ter planning/review.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {grupos.map((grupo) => (
+            <div key={grupo.id} className="space-y-2">
+              {grupos.length > 1 && (
+                <p className="text-xs font-medium uppercase tracking-wide text-black/40 dark:text-white/40">
+                  {grupo.nome}
+                </p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <PlanningReviewSection
+                  titulo="Planning"
+                  placeholder="Metas e itens planejados para esta sprint..."
+                  dado={sprint.plannings.find((p) => p.grupo_id === grupo.id) ?? null}
+                  podeGerenciar={podePlanningReview}
+                  onError={onError}
+                  onCreate={(payload) => api.createPlanning(sprint.id, { ...payload, grupo_id: grupo.id })}
+                  onUpdate={(payload) => api.updatePlanning(sprint.id, grupo.id, payload)}
+                  onDelete={() => api.deletePlanning(sprint.id, grupo.id)}
+                  onChange={(novo) => handlePlanningChange(grupo.id, novo)}
+                />
+                <PlanningReviewSection
+                  titulo="Review"
+                  placeholder="Resultados e observações desta sprint..."
+                  dado={sprint.reviews.find((r) => r.grupo_id === grupo.id) ?? null}
+                  podeGerenciar={podePlanningReview}
+                  onError={onError}
+                  onCreate={(payload) => api.createReview(sprint.id, { ...payload, grupo_id: grupo.id })}
+                  onUpdate={(payload) => api.updateReview(sprint.id, grupo.id, payload)}
+                  onDelete={() => api.deleteReview(sprint.id, grupo.id)}
+                  onChange={(novo) => handleReviewChange(grupo.id, novo)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-1">
         <p className="text-sm font-medium">Atividades da sprint</p>
@@ -256,7 +452,7 @@ function PlanningReviewSection<T extends PlanningOuReview>({
   }
 
   async function handleRemover() {
-    if (!window.confirm(`Remover ${titulo.toLowerCase()} desta sprint?`)) return;
+    if (!window.confirm(`Remover ${titulo.toLowerCase()} desta equipe nesta sprint?`)) return;
     setSalvando(true);
     try {
       await onDelete();

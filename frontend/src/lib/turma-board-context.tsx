@@ -9,6 +9,8 @@ import {
   type Estagio,
   type Grupo,
   type Sprint,
+  type SprintCreateInput,
+  type SprintUpdateInput,
   type Turma,
 } from "./api";
 
@@ -47,9 +49,10 @@ type TurmaBoardContextValue = {
   deleteAtividade: (atividadeId: string) => Promise<void>;
   moverAtividade: (atividadeId: string, estagioId: string) => Promise<void>;
 
-  createSprint: (nome: string) => Promise<Sprint>;
-  updateSprint: (sprintId: string, nome: string) => Promise<void>;
+  createSprint: (payload: SprintCreateInput) => Promise<Sprint>;
+  updateSprint: (sprintId: string, payload: SprintUpdateInput) => Promise<void>;
   deleteSprint: (sprintId: string) => Promise<void>;
+  reorderSprints: (sprintIds: string[]) => Promise<void>;
   updateSprintLocal: (sprintId: string, patch: Partial<Sprint>) => void;
 
   updateTurmaCronograma: (
@@ -200,20 +203,25 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
     }
   }
 
-  async function createSprint(nome: string) {
-    const sprint = await api.createSprint(turmaId, nome);
+  async function createSprint(payload: SprintCreateInput) {
+    const sprint = await api.createSprint(turmaId, payload);
     setSprints((prev) => [...prev, sprint]);
     return sprint;
   }
 
-  async function updateSprint(sprintId: string, nome: string) {
-    const updated = await api.updateSprint(sprintId, nome);
+  async function updateSprint(sprintId: string, payload: SprintUpdateInput) {
+    const updated = await api.updateSprint(sprintId, payload);
     setSprints((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }
 
   async function deleteSprint(sprintId: string) {
     await api.deleteSprint(sprintId);
     setSprints((prev) => prev.filter((s) => s.id !== sprintId));
+  }
+
+  async function reorderSprints(sprintIds: string[]) {
+    const updated = await api.reorderSprints(turmaId, sprintIds);
+    setSprints(updated);
   }
 
   function updateSprintLocal(sprintId: string, patch: Partial<Sprint>) {
@@ -262,6 +270,7 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
         createSprint,
         updateSprint,
         deleteSprint,
+        reorderSprints,
         updateSprintLocal,
         updateTurmaCronograma,
       }}
