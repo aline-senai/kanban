@@ -1,3 +1,5 @@
+import re
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -29,12 +31,21 @@ def notificar_atribuicao(db: Session, atividade: Atividade, responsavel_ids: lis
         )
 
 
+def _normalizar(texto: str) -> str:
+    """Remove acentos e caixa para permitir mencionar sem digitar o nome exatamente
+    (ex: "@Joao" deve encontrar "João")."""
+    sem_acentos = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    return sem_acentos.lower()
+
+
 def _mencionados_no_texto(texto: str, membros) -> set[uuid.UUID]:
-    texto_lower = texto.lower()
+    texto_normalizado = _normalizar(texto)
     mencionados = set()
     for membro in membros:
-        primeiro_nome = membro.user.name.split()[0].lower()
-        if f"@{primeiro_nome}" in texto_lower:
+        primeiro_nome = _normalizar(membro.user.name.split()[0])
+        if not primeiro_nome:
+            continue
+        if re.search(rf"@{re.escape(primeiro_nome)}\b", texto_normalizado):
             mencionados.add(membro.user.id)
     return mencionados
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useTurmaBoard } from "@/lib/turma-board-context";
 import { useViewAs } from "@/lib/view-as-context";
@@ -27,6 +27,13 @@ const PRIORIDADE_COR: Record<Prioridade, string> = {
 function formatarDataHora(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("pt-BR");
+}
+
+function normalizarTexto(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 function formatarDuracao(desdeIso: string): string {
@@ -57,6 +64,8 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [novoComentario, setNovoComentario] = useState("");
   const [enviandoComentario, setEnviandoComentario] = useState(false);
+  const [mencaoAtiva, setMencaoAtiva] = useState<{ termo: string; inicio: number } | null>(null);
+  const comentarioInputRef = useRef<HTMLInputElement>(null);
 
   const [historico, setHistorico] = useState<HistoricoEntry[]>([]);
 
@@ -188,6 +197,26 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
     }
   }
 
+  function handleComentarioChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const valor = e.target.value;
+    setNovoComentario(valor);
+
+    const cursor = e.target.selectionStart ?? valor.length;
+    const antesDoCursor = valor.slice(0, cursor);
+    const match = antesDoCursor.match(/(?:^|\s)@(\S*)$/);
+    setMencaoAtiva(match ? { termo: match[1], inicio: cursor - match[1].length - 1 } : null);
+  }
+
+  function handleSelecionarMencao(nomeCompleto: string) {
+    if (!mencaoAtiva) return;
+    const primeiroNome = nomeCompleto.split(" ")[0];
+    const antes = novoComentario.slice(0, mencaoAtiva.inicio);
+    const depois = novoComentario.slice(mencaoAtiva.inicio + 1 + mencaoAtiva.termo.length);
+    setNovoComentario(`${antes}@${primeiroNome} ${depois.trimStart()}`);
+    setMencaoAtiva(null);
+    comentarioInputRef.current?.focus();
+  }
+
   async function handleAddComentario(e: React.FormEvent) {
     e.preventDefault();
     if (!novoComentario.trim()) return;
@@ -197,6 +226,7 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
       const comentario = await api.createComentario(atividade!.id, novoComentario.trim());
       setComentarios((prev) => [...prev, comentario]);
       setNovoComentario("");
+      setMencaoAtiva(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao enviar comentário");
     } finally {
@@ -306,6 +336,13 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
   const concluidos = itens.filter((i) => i.concluido).length;
   const progresso = itens.length > 0 ? Math.round((concluidos / itens.length) * 100) : 0;
   const membrosDisponiveis = grupoAtual?.membros ?? [];
+
+  const sugestoesMencao = mencaoAtiva
+    ? membrosDisponiveis
+        .filter((m) => m.user.id !== user?.id)
+        .filter((m) => normalizarTexto(m.user.name).includes(normalizarTexto(mencaoAtiva.termo)))
+        .slice(0, 5)
+    : [];
 
   const candidatosVinculo = atividades.filter(
     (a) =>
@@ -722,12 +759,41 @@ export function CardDetailModal({ atividadeId, onClose }: { atividadeId: string;
               Use @Nome para mencionar e notificar um integrante do grupo.
             </p>
             <div className="flex gap-2">
-              <input
-                value={novoComentario}
-                onChange={(e) => setNovoComentario(e.target.value)}
-                placeholder="Escreva um comentário... (ex: @Maria pode revisar?)"
-                className="flex-1 rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
-              />
+              <div className="relative flex-1">
+                <input
+                  ref={comentarioInputRef}
+                  value={novoComentario}
+                  onChange={handleComentarioChange}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setMencaoAtiva(null);
+                    if (e.key === "Enter" && sugestoesMencao.length > 0) {
+                      e.preventDefault();
+                      handleSelecionarMencao(sugestoesMencao[0].user.name);
+                    }
+                  }}
+                  placeholder="Escreva um comentário... (ex: @Maria pode revisar?)"
+                  className="w-full rounded-md border border-black/15 px-2 py-1 text-sm dark:border-white/15 dark:bg-transparent"
+                />
+                {sugestoesMencao.length > 0 && (
+                  <ul className="absolute bottom-full left-0 z-10 mb-1 w-56 rounded-md border border-black/10 bg-background py-1 text-sm shadow-lg dark:border-white/10">
+                    {sugestoesMencao.map((m) => (
+                      <li key={m.user.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelecionarMencao(m.user.name);
+                          }}
+                          className="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-black/5 dark:hover:bg-white/10"
+                        >
+                          <Avatar id={m.user.id} name={m.user.name} />
+                          {m.user.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={enviandoComentario || !novoComentario.trim()}
