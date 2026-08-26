@@ -62,6 +62,25 @@ class AtividadeResponsavel(Base):
     user = relationship("User")
 
 
+class AtividadeVinculo(Base):
+    """Vínculo simétrico entre duas atividades: cada vínculo gera duas linhas (a->b e b->a)."""
+
+    __tablename__ = "atividade_vinculos"
+    __table_args__ = (
+        UniqueConstraint("atividade_id", "vinculada_id", name="uq_atividade_vinculo"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    atividade_id = Column(UUID(as_uuid=True), ForeignKey("atividades.id"), nullable=False)
+    vinculada_id = Column(UUID(as_uuid=True), ForeignKey("atividades.id"), nullable=False)
+    criado_por_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    atividade = relationship("Atividade", foreign_keys=[atividade_id])
+    vinculada = relationship("Atividade", foreign_keys=[vinculada_id])
+    criado_por = relationship("User")
+
+
 class AtividadeHistorico(Base):
     __tablename__ = "atividade_historico"
 

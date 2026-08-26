@@ -376,12 +376,13 @@ function NovaAtividadeForm({
       {membros.length > 0 && (
         <div className="space-y-1 text-xs">
           {membros.map((m) => (
-            <label key={m.user.id} className="flex items-center gap-1">
+            <label key={m.user.id} className="flex items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={responsaveis.includes(m.user.id)}
                 onChange={() => toggleResponsavel(m.user.id)}
               />
+              <Avatar id={m.user.id} name={m.user.name} />
               {m.user.name}
             </label>
           ))}

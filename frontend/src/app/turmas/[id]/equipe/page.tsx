@@ -24,6 +24,7 @@ export default function EquipePage() {
     reorderEstagios,
     duplicarEstagios,
     createGrupo,
+    deleteGrupo,
     addMembro,
     toggleGestor,
     removeMembro,
@@ -148,6 +149,16 @@ export default function EquipePage() {
     }
   }
 
+  async function handleDeleteGrupo(grupoId: string, nome: string) {
+    if (!window.confirm(`Remover o grupo "${nome}"?`)) return;
+    setError(null);
+    try {
+      await deleteGrupo(grupoId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao remover grupo");
+    }
+  }
+
   async function handleDuplicar(e: React.FormEvent) {
     e.preventDefault();
     if (!origemDuplicar) return;
@@ -240,8 +251,18 @@ export default function EquipePage() {
                   <p className="text-xs text-black/50 dark:text-white/50">{grupo.descricao}</p>
                 )}
               </div>
-              <span className="whitespace-nowrap rounded-full bg-black/5 px-2 py-0.5 text-xs dark:bg-white/10">
-                {grupo.membros.length} integrante{grupo.membros.length === 1 ? "" : "s"}
+              <span className="flex items-center gap-2">
+                <span className="whitespace-nowrap rounded-full bg-black/5 px-2 py-0.5 text-xs dark:bg-white/10">
+                  {grupo.membros.length} integrante{grupo.membros.length === 1 ? "" : "s"}
+                </span>
+                {podeGerenciar && grupo.membros.length === 0 && (
+                  <button
+                    onClick={() => handleDeleteGrupo(grupo.id, grupo.nome)}
+                    className="text-xs text-red-600 underline dark:text-red-400"
+                  >
+                    excluir
+                  </button>
+                )}
               </span>
             </div>
 

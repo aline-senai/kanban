@@ -296,12 +296,13 @@ function NovaAtividadeModal({ onClose }: { onClose: () => void }) {
             <label className="text-sm font-medium">Responsáveis</label>
             <div className="flex flex-wrap gap-2 text-xs">
               {grupoAtual.membros.map((m) => (
-                <label key={m.user.id} className="flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 dark:border-white/10">
+                <label key={m.user.id} className="flex items-center gap-1.5 rounded-md border border-black/10 px-2 py-1 dark:border-white/10">
                   <input
                     type="checkbox"
                     checked={responsaveis.includes(m.user.id)}
                     onChange={() => toggleResponsavel(m.user.id)}
                   />
+                  <Avatar id={m.user.id} name={m.user.name} />
                   {m.user.name}
                 </label>
               ))}

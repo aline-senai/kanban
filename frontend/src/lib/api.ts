@@ -1,6 +1,12 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "kanban_token";
 
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
@@ -35,6 +41,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    if (res.status === 401) onUnauthorized?.();
     throw new ApiError(res.status, body.detail ?? "Erro na requisição");
   }
   if (res.status === 204) return undefined as T;
@@ -123,6 +130,21 @@ export type Atividade = {
   data_fim: string | null;
   responsaveis: User[];
   criador: User;
+};
+
+export type AtividadeResumo = {
+  id: string;
+  numero: number;
+  nome: string;
+  grupo_id: string;
+  grupo_nome: string;
+  estagio_id: string;
+  estagio_nome: string;
+};
+
+export type AtividadeVinculo = {
+  id: string;
+  atividade: AtividadeResumo;
 };
 
 export type HistoricoEntry = {
@@ -268,6 +290,7 @@ export const api = {
     }),
   updateGrupo: (grupoId: string, payload: Partial<Pick<Grupo, "nome" | "descricao">>) =>
     request<Grupo>(`/grupos/${grupoId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteGrupo: (grupoId: string) => request<void>(`/grupos/${grupoId}`, { method: "DELETE" }),
   addMembro: (grupoId: string, userId: string, isGestor: boolean) =>
     request<Grupo>(`/grupos/${grupoId}/membros`, {
       method: "POST",
@@ -313,6 +336,16 @@ export const api = {
       body: JSON.stringify({ estagio_id: estagioId }),
     }),
   listHistorico: (atividadeId: string) => request<HistoricoEntry[]>(`/atividades/${atividadeId}/historico`),
+  deleteAtividade: (atividadeId: string) => request<void>(`/atividades/${atividadeId}`, { method: "DELETE" }),
+
+  listVinculos: (atividadeId: string) => request<AtividadeVinculo[]>(`/atividades/${atividadeId}/vinculos`),
+  createVinculo: (atividadeId: string, atividadeVinculadaId: string) =>
+    request<AtividadeVinculo>(`/atividades/${atividadeId}/vinculos`, {
+      method: "POST",
+      body: JSON.stringify({ atividade_vinculada_id: atividadeVinculadaId }),
+    }),
+  deleteVinculo: (atividadeId: string, vinculadaId: string) =>
+    request<void>(`/atividades/${atividadeId}/vinculos/${vinculadaId}`, { method: "DELETE" }),
 
   listChecklist: (atividadeId: string) => request<ChecklistItem[]>(`/atividades/${atividadeId}/checklist`),
   createChecklistItem: (atividadeId: string, texto: string) =>

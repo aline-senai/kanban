@@ -62,3 +62,22 @@ class HistoricoEntryOut(BaseModel):
     user_name: str
     created_at: datetime
     duracao_segundos: int
+
+
+class AtividadeVinculoCreate(BaseModel):
+    atividade_vinculada_id: uuid.UUID
+
+
+class AtividadeResumoOut(BaseModel):
+    id: uuid.UUID
+    numero: int
+    nome: str
+    grupo_id: uuid.UUID
+    grupo_nome: str
+    estagio_id: uuid.UUID
+    estagio_nome: str
+
+
+class AtividadeVinculoOut(BaseModel):
+    id: uuid.UUID
+    atividade: AtividadeResumoOut

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, clearToken, getToken, setToken, type User } from "./api";
+import { api, clearToken, getToken, setToken, setUnauthorizedHandler, type User } from "./api";
 
 type AuthContextValue = {
   user: User | null;
@@ -58,6 +58,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const me = await api.me();
     setUser(me);
   }
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearToken();
+      setUser(null);
+      router.push("/login");
+    });
+    return () => setUnauthorizedHandler(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout, refreshMe }}>

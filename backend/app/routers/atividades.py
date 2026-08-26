@@ -2,13 +2,13 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.core.permissions import can_manage_grupo, is_member_or_manager
-from app.models.atividade import Atividade, AtividadeHistorico, AtividadeResponsavel
+from app.core.permissions import can_manage_grupo, has_turma_access, is_member_or_manager
+from app.models.atividade import Atividade, AtividadeHistorico, AtividadeResponsavel, AtividadeVinculo
 from app.models.estagio import Estagio
 from app.models.grupo import Grupo, GrupoMembro
 from app.models.user import User
@@ -16,7 +16,10 @@ from app.services.notificacoes import notificar_atribuicao
 from app.schemas.atividade import (
     AtividadeCreate,
     AtividadeOut,
+    AtividadeResumoOut,
     AtividadeUpdate,
+    AtividadeVinculoCreate,
+    AtividadeVinculoOut,
     HistoricoEntryOut,
     MoverAtividadeRequest,
 )
@@ -159,6 +162,28 @@ def update_atividade(
     return atividade
 
 
+@router.delete("/atividades/{atividade_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_atividade(
+    atividade_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    atividade = db.get(Atividade, atividade_id)
+    if atividade is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada")
+    if not can_manage_grupo(atividade.grupo, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Apenas professor ou gestor podem remover atividades"
+        )
+
+    db.query(AtividadeHistorico).filter(AtividadeHistorico.atividade_id == atividade_id).delete()
+    db.query(AtividadeVinculo).filter(
+        or_(AtividadeVinculo.atividade_id == atividade_id, AtividadeVinculo.vinculada_id == atividade_id)
+    ).delete()
+    db.delete(atividade)
+    db.commit()
+
+
 def _can_move_atividade(atividade: Atividade, user: User, db: Session) -> bool:
     if can_manage_grupo(atividade.grupo, user, db):
         return True
@@ -253,3 +278,111 @@ def historico_atividade(
             )
         )
     return resultado
+
+
+def _to_resumo(atividade: Atividade) -> AtividadeResumoOut:
+    return AtividadeResumoOut(
+        id=atividade.id,
+        numero=atividade.numero,
+        nome=atividade.nome,
+        grupo_id=atividade.grupo_id,
+        grupo_nome=atividade.grupo.nome,
+        estagio_id=atividade.estagio_id,
+        estagio_nome=atividade.estagio.nome,
+    )
+
+
+def _can_edit_atividade(atividade: Atividade, user: User, db: Session) -> bool:
+    if can_manage_grupo(atividade.grupo, user, db):
+        return True
+    return (
+        db.query(AtividadeResponsavel)
+        .filter(AtividadeResponsavel.atividade_id == atividade.id, AtividadeResponsavel.user_id == user.id)
+        .first()
+        is not None
+    )
+
+
+@router.get("/atividades/{atividade_id}/vinculos", response_model=list[AtividadeVinculoOut])
+def list_vinculos(
+    atividade_id: uuid.UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    atividade = db.get(Atividade, atividade_id)
+    if atividade is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada")
+    if not is_member_or_manager(atividade.grupo, current_user, db):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem acesso a esta atividade")
+
+    vinculos = db.query(AtividadeVinculo).filter(AtividadeVinculo.atividade_id == atividade_id).all()
+    return [AtividadeVinculoOut(id=v.id, atividade=_to_resumo(v.vinculada)) for v in vinculos]
+
+
+@router.post(
+    "/atividades/{atividade_id}/vinculos", response_model=AtividadeVinculoOut, status_code=status.HTTP_201_CREATED
+)
+def create_vinculo(
+    atividade_id: uuid.UUID,
+    payload: AtividadeVinculoCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    atividade = db.get(Atividade, atividade_id)
+    if atividade is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada")
+    if not _can_edit_atividade(atividade, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Você não tem permissão para vincular esta atividade"
+        )
+
+    if payload.atividade_vinculada_id == atividade_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Uma atividade não pode ser vinculada a ela mesma"
+        )
+
+    vinculada = db.get(Atividade, payload.atividade_vinculada_id)
+    if vinculada is None or vinculada.grupo.turma_id != atividade.grupo.turma_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Atividade inválida para vínculo")
+    if not has_turma_access(vinculada.grupo.turma, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Você não tem permissão para vincular esta atividade"
+        )
+
+    ja_vinculadas = (
+        db.query(AtividadeVinculo)
+        .filter(AtividadeVinculo.atividade_id == atividade_id, AtividadeVinculo.vinculada_id == vinculada.id)
+        .first()
+    )
+    if ja_vinculadas is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Atividades já vinculadas")
+
+    vinculo = AtividadeVinculo(atividade_id=atividade_id, vinculada_id=vinculada.id, criado_por_id=current_user.id)
+    inverso = AtividadeVinculo(atividade_id=vinculada.id, vinculada_id=atividade_id, criado_por_id=current_user.id)
+    db.add(vinculo)
+    db.add(inverso)
+    db.commit()
+    db.refresh(vinculo)
+    return AtividadeVinculoOut(id=vinculo.id, atividade=_to_resumo(vinculada))
+
+
+@router.delete("/atividades/{atividade_id}/vinculos/{vinculada_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_vinculo(
+    atividade_id: uuid.UUID,
+    vinculada_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    atividade = db.get(Atividade, atividade_id)
+    if atividade is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada")
+    if not _can_edit_atividade(atividade, current_user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Você não tem permissão para desvincular esta atividade"
+        )
+
+    db.query(AtividadeVinculo).filter(
+        or_(
+            and_(AtividadeVinculo.atividade_id == atividade_id, AtividadeVinculo.vinculada_id == vinculada_id),
+            and_(AtividadeVinculo.atividade_id == vinculada_id, AtividadeVinculo.vinculada_id == atividade_id),
+        )
+    ).delete()
+    db.commit()
