@@ -20,6 +20,7 @@ from app.schemas.sprint import (
     ReviewUpdate,
     SprintCreate,
     SprintOut,
+    SprintReorderRequest,
     SprintUpdate,
 )
 
@@ -54,6 +55,13 @@ def list_sprints(
     return db.query(Sprint).filter(Sprint.turma_id == turma_id).order_by(Sprint.ordem).all()
 
 
+def _validar_periodo(data_inicio, data_fim):
+    if data_inicio is not None and data_fim is not None and data_fim < data_inicio:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Data final não pode ser anterior à data inicial"
+        )
+
+
 @router.post("/turmas/{turma_id}/sprints", response_model=SprintOut, status_code=status.HTTP_201_CREATED)
 def create_sprint(
     turma_id: uuid.UUID,
@@ -62,8 +70,15 @@ def create_sprint(
     db: Session = Depends(get_db),
 ):
     get_owned_turma(turma_id, current_user, db)
+    _validar_periodo(payload.data_inicio, payload.data_fim)
     proxima_ordem = db.query(Sprint).filter(Sprint.turma_id == turma_id).count()
-    sprint = Sprint(turma_id=turma_id, nome=payload.nome, ordem=proxima_ordem)
+    sprint = Sprint(
+        turma_id=turma_id,
+        nome=payload.nome,
+        ordem=proxima_ordem,
+        data_inicio=payload.data_inicio,
+        data_fim=payload.data_fim,
+    )
     db.add(sprint)
     db.commit()
     db.refresh(sprint)
@@ -87,6 +102,15 @@ def update_sprint(
     sprint = _get_sprint_do_professor(sprint_id, current_user, db)
     if payload.nome is not None:
         sprint.nome = payload.nome
+
+    novo_inicio = payload.data_inicio if "data_inicio" in payload.model_fields_set else sprint.data_inicio
+    novo_fim = payload.data_fim if "data_fim" in payload.model_fields_set else sprint.data_fim
+    _validar_periodo(novo_inicio, novo_fim)
+    if "data_inicio" in payload.model_fields_set:
+        sprint.data_inicio = payload.data_inicio
+    if "data_fim" in payload.model_fields_set:
+        sprint.data_fim = payload.data_fim
+
     db.commit()
     db.refresh(sprint)
     return sprint
@@ -100,6 +124,30 @@ def delete_sprint(
     db.query(Atividade).filter(Atividade.sprint_id == sprint_id).update({"sprint_id": None})
     db.delete(sprint)
     db.commit()
+
+
+@router.patch("/turmas/{turma_id}/sprints/reorder", response_model=list[SprintOut])
+def reorder_sprints(
+    turma_id: uuid.UUID,
+    payload: SprintReorderRequest,
+    current_user: User = Depends(require_professor),
+    db: Session = Depends(get_db),
+):
+    get_owned_turma(turma_id, current_user, db)
+    sprints = db.query(Sprint).filter(Sprint.turma_id == turma_id).all()
+    sprints_by_id = {s.id: s for s in sprints}
+
+    if set(payload.sprint_ids) != set(sprints_by_id.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A lista deve conter exatamente todas as sprints da turma",
+        )
+
+    for ordem, sprint_id in enumerate(payload.sprint_ids):
+        sprints_by_id[sprint_id].ordem = ordem
+
+    db.commit()
+    return db.query(Sprint).filter(Sprint.turma_id == turma_id).order_by(Sprint.ordem).all()
 
 
 @router.post("/sprints/{sprint_id}/planning", response_model=PlanningOut, status_code=status.HTTP_201_CREATED)

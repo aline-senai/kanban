@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,10 +8,18 @@ from app.schemas.user import UserOut
 
 class SprintCreate(BaseModel):
     nome: str
+    data_inicio: date | None = None
+    data_fim: date | None = None
 
 
 class SprintUpdate(BaseModel):
     nome: str | None = None
+    data_inicio: date | None = None
+    data_fim: date | None = None
+
+
+class SprintReorderRequest(BaseModel):
+    sprint_ids: list[uuid.UUID]
 
 
 class PlanningCreate(BaseModel):
@@ -65,6 +73,8 @@ class SprintOut(BaseModel):
     turma_id: uuid.UUID
     nome: str
     ordem: int
+    data_inicio: date | None
+    data_fim: date | None
     created_at: datetime
     planning: PlanningOut | None = None
     review: ReviewOut | None = None

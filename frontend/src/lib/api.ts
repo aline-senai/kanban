@@ -198,9 +198,23 @@ export type Sprint = {
   turma_id: string;
   nome: string;
   ordem: number;
+  data_inicio: string | null;
+  data_fim: string | null;
   created_at: string;
   planning: SprintPlanning | null;
   review: SprintReview | null;
+};
+
+export type SprintCreateInput = {
+  nome: string;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+};
+
+export type SprintUpdateInput = {
+  nome?: string;
+  data_inicio?: string | null;
+  data_fim?: string | null;
 };
 
 export type PastaCompartilhada = {
@@ -410,11 +424,16 @@ export const api = {
     downloadFile(`/anexo-versoes/${versaoId}/download`, nomeArquivo),
 
   listSprints: (turmaId: string) => request<Sprint[]>(`/turmas/${turmaId}/sprints`),
-  createSprint: (turmaId: string, nome: string) =>
-    request<Sprint>(`/turmas/${turmaId}/sprints`, { method: "POST", body: JSON.stringify({ nome }) }),
-  updateSprint: (sprintId: string, nome: string) =>
-    request<Sprint>(`/sprints/${sprintId}`, { method: "PATCH", body: JSON.stringify({ nome }) }),
+  createSprint: (turmaId: string, payload: SprintCreateInput) =>
+    request<Sprint>(`/turmas/${turmaId}/sprints`, { method: "POST", body: JSON.stringify(payload) }),
+  updateSprint: (sprintId: string, payload: SprintUpdateInput) =>
+    request<Sprint>(`/sprints/${sprintId}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteSprint: (sprintId: string) => request<void>(`/sprints/${sprintId}`, { method: "DELETE" }),
+  reorderSprints: (turmaId: string, sprintIds: string[]) =>
+    request<Sprint[]>(`/turmas/${turmaId}/sprints/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({ sprint_ids: sprintIds }),
+    }),
 
   createPlanning: (sprintId: string, payload: { data?: string | null; texto?: string | null }) =>
     request<SprintPlanning>(`/sprints/${sprintId}/planning`, { method: "POST", body: JSON.stringify(payload) }),

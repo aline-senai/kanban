@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -16,6 +16,8 @@ class Sprint(Base):
     turma_id = Column(UUID(as_uuid=True), ForeignKey("turmas.id"), nullable=False)
     nome = Column(String, nullable=False)
     ordem = Column(Integer, nullable=False)
+    data_inicio = Column(Date, nullable=True)
+    data_fim = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     turma = relationship("Turma")
