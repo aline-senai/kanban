@@ -1,40 +1,56 @@
+import json
 import logging
-import smtplib
-from email.message import EmailMessage
+import urllib.error
+import urllib.request
 from html import escape
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+RESEND_API_URL = "https://api.resend.com/emails"
+
 
 def enviar_email(destinatario: str, assunto: str, corpo_texto: str, corpo_html: str | None = None) -> None:
-    """Envia um e-mail transacional via SMTP.
+    """Envia um e-mail transacional via API HTTPS da Resend.
 
-    Sem SMTP_HOST configurado (dev/local), o envio é ignorado — a rota que
-    chama esta função nunca deve depender do retorno para decidir sua resposta,
-    para não vazar se o e-mail existe ou não na base.
+    Sem RESEND_API_KEY configurada (dev/local), o envio é ignorado — a rota
+    que chama esta função nunca deve depender do retorno para decidir sua
+    resposta, para não vazar se o e-mail existe ou não na base.
+
+    Usamos a API HTTPS da Resend em vez de SMTP porque serviços como o Render
+    não garantem rota de saída para conexões SMTP brutas (a porta pode ficar
+    inalcançável mesmo quando o tráfego HTTPS de saída funciona normalmente).
     """
-    if not settings.smtp_host:
-        logger.warning("SMTP não configurado: e-mail para %s não foi enviado.", destinatario)
+    if not settings.resend_api_key:
+        logger.warning("RESEND_API_KEY não configurada: e-mail para %s não foi enviado.", destinatario)
         return
 
-    msg = EmailMessage()
-    msg["Subject"] = assunto
-    msg["From"] = settings.smtp_from
-    msg["To"] = destinatario
-    msg.set_content(corpo_texto)
-    if corpo_html:
-        msg.add_alternative(corpo_html, subtype="html")
+    body = {
+        "from": settings.smtp_from,
+        "to": [destinatario],
+        "subject": assunto,
+        "text": corpo_texto,
+    }
+    if corpo_html is not None:
+        body["html"] = corpo_html
+
+    payload = json.dumps(body).encode("utf-8")
+
+    request = urllib.request.Request(
+        RESEND_API_URL,
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+        },
+    )
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
-            if settings.smtp_use_tls:
-                smtp.starttls()
-            if settings.smtp_user:
-                smtp.login(settings.smtp_user, settings.smtp_password)
-            smtp.send_message(msg)
-    except (smtplib.SMTPException, OSError):
+        with urllib.request.urlopen(request, timeout=10):
+            pass
+    except (urllib.error.URLError, OSError):
         logger.exception("Falha ao enviar e-mail para %s.", destinatario)
 
 
@@ -63,6 +79,9 @@ def montar_email_html(titulo: str, paragrafos: list[str], cta_texto: str | None 
             </td>
           </tr>
         </table>
+        <p style="margin:8px 0 0;font-size:12px;color:#94a3b8;">
+          Se o botão não funcionar, copie e cole este link no navegador: {escape(cta_url)}
+        </p>
         """
 
     return f"""\
