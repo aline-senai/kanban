@@ -88,21 +88,25 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
     }
   }
 
+  async function syncBoard() {
+    const [turmasData, estagiosData, gruposData, sprintsData] = await Promise.all([
+      api.listTurmas(),
+      api.listEstagios(turmaId),
+      api.listGrupos(turmaId),
+      api.listSprints(turmaId),
+    ]);
+    setTurma(turmasData.find((t) => t.id === turmaId) ?? null);
+    setOutrasTurmas(turmasData.filter((t) => t.id !== turmaId));
+    setEstagios(estagiosData);
+    setGrupos(gruposData);
+    setSprints(sprintsData);
+    await refreshAtividades(gruposData);
+  }
+
   async function refreshAll() {
     setLoading(true);
     try {
-      const [turmasData, estagiosData, gruposData, sprintsData] = await Promise.all([
-        api.listTurmas(),
-        api.listEstagios(turmaId),
-        api.listGrupos(turmaId),
-        api.listSprints(turmaId),
-      ]);
-      setTurma(turmasData.find((t) => t.id === turmaId) ?? null);
-      setOutrasTurmas(turmasData.filter((t) => t.id !== turmaId));
-      setEstagios(estagiosData);
-      setGrupos(gruposData);
-      setSprints(sprintsData);
-      await refreshAtividades(gruposData);
+      await syncBoard();
     } catch (err) {
       setError(errMsg(err, "Erro ao carregar o quadro"));
     } finally {
@@ -112,6 +116,20 @@ export function TurmaBoardProvider({ turmaId, children }: { turmaId: string; chi
 
   useEffect(() => {
     refreshAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turmaId]);
+
+  // Além do carregamento inicial, sincroniza periodicamente em segundo plano: como o
+  // quadro é compartilhado entre professor/gestores/integrantes, uma atualização feita
+  // por outra pessoa (mover card, editar atividade, criar planning/review) só aparecia
+  // depois de recarregar a página inteira.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      syncBoard().catch(() => {
+        // erro silencioso: não interrompe a sessão por uma falha pontual de polling
+      });
+    }, 15000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turmaId]);
 
