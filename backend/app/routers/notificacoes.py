@@ -1,14 +1,16 @@
+import secrets
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.notificacao import Notificacao
 from app.models.user import User
 from app.schemas.notificacao import NotificacaoOut
-from app.services.notificacoes import gerar_notificacoes_prazo_proximo
+from app.services.notificacoes import gerar_notificacoes_prazo_proximo, notificar_atividades_vencendo_hoje
 
 router = APIRouter(prefix="/notificacoes", tags=["notificacoes"])
 
@@ -44,3 +46,21 @@ def marcar_todas_lidas(current_user: User = Depends(get_current_user), db: Sessi
         {"lida": True}
     )
     db.commit()
+
+
+@router.post("/jobs/vencendo-hoje")
+def job_notificar_vencendo_hoje(
+    x_cron_secret: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Dispara o e-mail de "vence hoje" para todos os responsáveis com prazo no dia.
+
+    Não é uma rota de usuário: é feita para ser chamada 1x/dia por um agendador externo
+    (cron do servidor, GitHub Actions com schedule, etc.), autenticada por um segredo
+    compartilhado (header X-Cron-Secret) em vez de login de usuário.
+    """
+    if not settings.cron_secret or not secrets.compare_digest(x_cron_secret, settings.cron_secret):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    enviados = notificar_atividades_vencendo_hoje(db)
+    return {"emails_enviados": enviados}

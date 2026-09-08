@@ -21,7 +21,7 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.schemas.user import UserMeUpdate
-from app.services.email import enviar_email
+from app.services.email import enviar_email, montar_email_html
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -92,6 +92,17 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
                 f"Use o link abaixo (válido por {settings.password_reset_token_expire_minutes} minutos):\n\n"
                 f"{link}\n\n"
                 "Se você não pediu isso, pode ignorar este e-mail."
+            ),
+            montar_email_html(
+                "Recuperação de senha",
+                [
+                    f"Olá, {user.name}.",
+                    "Recebemos um pedido para redefinir sua senha no Quadro SENAI.",
+                    f"Este link é válido por {settings.password_reset_token_expire_minutes} minutos. "
+                    "Se você não pediu isso, pode ignorar este e-mail.",
+                ],
+                cta_texto="Redefinir senha",
+                cta_url=link,
             ),
         )
 

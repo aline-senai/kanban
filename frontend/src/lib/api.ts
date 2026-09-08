@@ -273,7 +273,7 @@ export type Comentario = {
 export type Notificacao = {
   id: string;
   atividade_id: string | null;
-  tipo: "atribuicao" | "mencao" | "comentario" | "prazo_proximo";
+  tipo: "atribuicao" | "mencao" | "comentario" | "prazo_proximo" | "prazo_hoje";
   texto: string;
   lida: boolean;
   created_at: string;

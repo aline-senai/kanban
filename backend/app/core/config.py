@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     password_reset_token_expire_minutes: int = 60
 
+    # Segredo compartilhado que protege POST /notificacoes/jobs/vencendo-hoje, pensado
+    # para ser chamado 1x/dia por um agendador externo (cron, GitHub Actions, etc.) via
+    # header "X-Cron-Secret". Vazio (padrão) desativa a rota.
+    cron_secret: str = ""
+
     storage_dir: str = "storage"
     max_upload_size_mb: int = 20
     allowed_upload_extensions: set[str] = {
