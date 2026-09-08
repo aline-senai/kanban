@@ -1,7 +1,6 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from html import escape
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -22,58 +21,13 @@ from app.schemas.auth import (
     UserOut,
 )
 from app.schemas.user import UserMeUpdate
-from app.services.email import enviar_email
+from app.services.email import enviar_email, montar_email_html
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _email_redefinicao_senha_html(nome: str, link: str, validade_minutos: int) -> str:
-    nome_seguro = escape(nome)
-    link_seguro = escape(link)
-    return f"""\
-<!DOCTYPE html>
-<html lang="pt-BR">
-  <body style="margin:0;padding:32px 16px;background-color:#f4f5f7;font-family:Arial,Helvetica,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-      <tr>
-        <td style="background-color:#1d4ed8;padding:24px 32px;">
-          <span style="color:#ffffff;font-size:18px;font-weight:bold;">Quadro SENAI</span>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:32px;color:#1f2937;font-size:15px;line-height:1.5;">
-          <p style="margin:0 0 16px;">Olá, {nome_seguro}.</p>
-          <p style="margin:0 0 24px;">
-            Recebemos um pedido para redefinir sua senha no Quadro SENAI.
-            Clique no botão abaixo para escolher uma nova senha
-            (válido por {validade_minutos} minutos):
-          </p>
-          <p style="margin:0 0 24px;text-align:center;">
-            <a href="{link_seguro}"
-               style="display:inline-block;background-color:#1d4ed8;color:#ffffff;text-decoration:none;
-                      padding:12px 28px;border-radius:6px;font-weight:bold;">
-              Redefinir senha
-            </a>
-          </p>
-          <p style="margin:0 0 8px;font-size:13px;color:#6b7280;">
-            Se o botão não funcionar, copie e cole este link no navegador:
-          </p>
-          <p style="margin:0 0 24px;font-size:13px;word-break:break-all;">
-            <a href="{link_seguro}" style="color:#1d4ed8;">{link_seguro}</a>
-          </p>
-          <p style="margin:0;font-size:13px;color:#6b7280;">
-            Se você não pediu isso, pode ignorar este e-mail.
-          </p>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>
-"""
 
 
 @router.post("/login", response_model=Token)
@@ -139,7 +93,17 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
                 f"{link}\n\n"
                 "Se você não pediu isso, pode ignorar este e-mail."
             ),
-            _email_redefinicao_senha_html(user.name, link, settings.password_reset_token_expire_minutes),
+            montar_email_html(
+                "Recuperação de senha",
+                [
+                    f"Olá, {user.name}.",
+                    "Recebemos um pedido para redefinir sua senha no Quadro SENAI.",
+                    f"Este link é válido por {settings.password_reset_token_expire_minutes} minutos. "
+                    "Se você não pediu isso, pode ignorar este e-mail.",
+                ],
+                cta_texto="Redefinir senha",
+                cta_url=link,
+            ),
         )
 
 

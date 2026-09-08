@@ -9,6 +9,7 @@ const TIPO_LABEL: Record<Notificacao["tipo"], string> = {
   mencao: "Menção",
   comentario: "Comentário",
   prazo_proximo: "Prazo",
+  prazo_hoje: "Vence hoje",
 };
 
 export function NotificationsBell() {

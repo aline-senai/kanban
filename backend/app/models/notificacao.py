@@ -13,6 +13,7 @@ class NotificacaoTipo(str, enum.Enum):
     MENCAO = "mencao"
     COMENTARIO = "comentario"
     PRAZO_PROXIMO = "prazo_proximo"
+    PRAZO_HOJE = "prazo_hoje"
 
 
 class Notificacao(Base):
