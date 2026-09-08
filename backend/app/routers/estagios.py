@@ -1,11 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_professor
 from app.core.permissions import has_turma_access
+from app.models.atividade import Atividade, AtividadeHistorico
 from app.models.estagio import Estagio
 from app.models.turma import Turma
 from app.models.user import User
@@ -88,6 +90,20 @@ def delete_estagio(
     estagio_id: uuid.UUID, current_user: User = Depends(require_professor), db: Session = Depends(get_db)
 ):
     estagio = _get_owned_estagio(estagio_id, current_user, db)
+
+    em_uso = db.query(Atividade).filter(Atividade.estagio_id == estagio_id).count()
+    if em_uso > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Este estágio tem {em_uso} atividade(s). Mova ou remova essas atividades "
+                "antes de excluir o estágio."
+            ),
+        )
+
+    db.query(AtividadeHistorico).filter(
+        or_(AtividadeHistorico.estagio_de_id == estagio_id, AtividadeHistorico.estagio_para_id == estagio_id)
+    ).delete()
     db.delete(estagio)
     db.commit()
 
