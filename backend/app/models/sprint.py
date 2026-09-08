@@ -33,7 +33,7 @@ class SprintPlanning(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sprint_id = Column(UUID(as_uuid=True), ForeignKey("sprints.id"), nullable=False)
-    grupo_id = Column(UUID(as_uuid=True), ForeignKey("grupos.id"), nullable=True)
+    grupo_id = Column(UUID(as_uuid=True), ForeignKey("grupos.id"), nullable=False)
     data = Column(DateTime(timezone=True), nullable=True)
     texto = Column(Text, nullable=True)
     criado_por_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -57,7 +57,7 @@ class SprintReview(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sprint_id = Column(UUID(as_uuid=True), ForeignKey("sprints.id"), nullable=False)
-    grupo_id = Column(UUID(as_uuid=True), ForeignKey("grupos.id"), nullable=True)
+    grupo_id = Column(UUID(as_uuid=True), ForeignKey("grupos.id"), nullable=False)
     data = Column(DateTime(timezone=True), nullable=True)
     texto = Column(Text, nullable=True)
     criado_por_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

@@ -53,14 +53,19 @@ export function AppShell({ turmaId, children }: { turmaId: string; children: Rea
     <div className="flex min-h-screen w-full bg-slate-50 dark:bg-slate-950">
       <aside className="flex w-64 shrink-0 flex-col justify-between border-r border-black/10 bg-white p-4 print:hidden dark:border-white/10 dark:bg-slate-900">
         <div className="space-y-6">
-          <div className="flex items-center gap-2">
+          <Link href="/turmas" className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-md bg-blue-600" />
             <span className="font-semibold">Quadro SENAI</span>
-          </div>
+          </Link>
 
           {turma && (
             <div className="rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
-              <p className="font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Turma</p>
+              <Link
+                href="/turmas"
+                className="font-medium uppercase tracking-wide text-black/50 hover:underline dark:text-white/50"
+              >
+                ← Minhas turmas
+              </Link>
               <p className="mt-1 text-sm font-semibold">{turma.nome}</p>
               {sprintAtual && (
                 <p className="mt-1 text-black/60 dark:text-white/60">
