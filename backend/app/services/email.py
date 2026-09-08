@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
-def enviar_email(destinatario: str, assunto: str, corpo_texto: str) -> None:
+def enviar_email(destinatario: str, assunto: str, corpo_texto: str, corpo_html: str | None = None) -> None:
     """Envia um e-mail transacional via API HTTPS da Resend.
 
     Sem RESEND_API_KEY configurada (dev/local), o envio é ignorado — a rota
@@ -25,14 +25,16 @@ def enviar_email(destinatario: str, assunto: str, corpo_texto: str) -> None:
         logger.warning("RESEND_API_KEY não configurada: e-mail para %s não foi enviado.", destinatario)
         return
 
-    payload = json.dumps(
-        {
-            "from": settings.smtp_from,
-            "to": [destinatario],
-            "subject": assunto,
-            "text": corpo_texto,
-        }
-    ).encode("utf-8")
+    body = {
+        "from": settings.smtp_from,
+        "to": [destinatario],
+        "subject": assunto,
+        "text": corpo_texto,
+    }
+    if corpo_html is not None:
+        body["html"] = corpo_html
+
+    payload = json.dumps(body).encode("utf-8")
 
     request = urllib.request.Request(
         RESEND_API_URL,
