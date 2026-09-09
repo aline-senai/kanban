@@ -16,6 +16,7 @@ class UserOut(BaseModel):
     name: str
     email: EmailStr
     role: UserRole
+    deve_trocar_senha: bool
     notif_atribuicao: bool
     notif_prazo: bool
     notif_comentario: bool

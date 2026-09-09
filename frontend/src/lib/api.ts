@@ -72,6 +72,7 @@ export type User = {
   name: string;
   email: string;
   role: "professor" | "aluno";
+  deve_trocar_senha: boolean;
   notif_atribuicao: boolean;
   notif_prazo: boolean;
   notif_comentario: boolean;
