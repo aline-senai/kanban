@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { SenhaTemporariaModal } from "@/components/SenhaTemporariaModal";
 import { api, type Notificacao } from "@/lib/api";
 
 const TIPO_LABEL: Record<Notificacao["tipo"], string> = {
@@ -18,6 +19,7 @@ export function NotificationsBell() {
   const { user } = useAuth();
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [aberto, setAberto] = useState(false);
+  const [senhaModal, setSenhaModal] = useState<{ nome: string; senha: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function carregar() {
@@ -71,7 +73,8 @@ export function NotificationsBell() {
     if (!notificacao.referencia_user_id) return;
     try {
       const { senha_temporaria } = await api.resetSenhaAluno(notificacao.referencia_user_id);
-      window.alert(`Senha temporária: ${senha_temporaria}\n\nRepasse à pessoa e peça para trocá-la depois de entrar.`);
+      const nome = notificacao.texto.split(" (")[0];
+      setSenhaModal({ nome, senha: senha_temporaria });
       await handleMarcarLida(notificacao);
     } catch {
       carregar();
@@ -93,6 +96,14 @@ export function NotificationsBell() {
 
   return (
     <div ref={containerRef} className="relative">
+      {senhaModal && (
+        <SenhaTemporariaModal
+          nome={senhaModal.nome}
+          senha={senhaModal.senha}
+          onClose={() => setSenhaModal(null)}
+        />
+      )}
+
       <button
         onClick={() => setAberto((prev) => !prev)}
         className="relative rounded-full border border-black/15 bg-background px-3 py-1.5 text-sm dark:border-white/15"

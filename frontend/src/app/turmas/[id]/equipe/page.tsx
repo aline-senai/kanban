@@ -7,6 +7,7 @@ import { useViewAs } from "@/lib/view-as-context";
 import { podeGerenciarGrupos } from "@/lib/permissions";
 import { getEstagioFinalId } from "@/lib/atividade-status";
 import { Avatar } from "@/components/Avatar";
+import { SenhaTemporariaModal } from "@/components/SenhaTemporariaModal";
 import { api, ApiError, type User } from "@/lib/api";
 
 const ESTAGIO_CORES_DEFAULT = ["bg-slate-400", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-emerald-500"];
@@ -34,6 +35,7 @@ export default function EquipePage() {
 
   const [alunos, setAlunos] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [senhaModal, setSenhaModal] = useState<{ nome: string; senha: string } | null>(null);
 
   const [novoGrupoNome, setNovoGrupoNome] = useState("");
   const [novoGrupoDescricao, setNovoGrupoDescricao] = useState("");
@@ -154,9 +156,7 @@ export default function EquipePage() {
     setError(null);
     try {
       const { senha_temporaria } = await api.resetSenhaAluno(aluno.id);
-      window.alert(
-        `Senha temporária de ${aluno.name}: ${senha_temporaria}\n\nRepasse ao aluno e peça para trocá-la depois de entrar.`
-      );
+      setSenhaModal({ nome: aluno.name, senha: senha_temporaria });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Erro ao resetar senha");
     }
@@ -185,6 +185,14 @@ export default function EquipePage() {
 
   return (
     <div className="space-y-8">
+      {senhaModal && (
+        <SenhaTemporariaModal
+          nome={senhaModal.nome}
+          senha={senhaModal.senha}
+          onClose={() => setSenhaModal(null)}
+        />
+      )}
+
       {podeGerenciar && (
         <div className="flex justify-end">
           <Link href={`/turmas/${turmaId}/relatorios`} className="text-sm underline">
