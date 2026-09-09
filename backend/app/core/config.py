@@ -9,11 +9,14 @@ class Settings(BaseSettings):
     # Lista de origens liberadas no CORS, separadas por vírgula (ex: "https://app.vercel.app,https://outro.com").
     cors_origins: str = "http://localhost:3000"
 
-    # Envio de e-mails transacionais (recuperação de senha) via API HTTPS da
-    # Resend. Se resend_api_key ficar vazia, o envio é ignorado (modo
-    # dev/local sem provedor configurado).
-    resend_api_key: str = ""
-    smtp_from: str = "no-reply@quadrosenai.local"
+    # Envio de e-mails transacionais (recuperação de senha, nova atividade
+    # atribuída, atividade vencendo hoje) via SMTP do Gmail. Se
+    # gmail_user/gmail_app_password ficarem vazios, o envio é ignorado (modo
+    # dev/local sem provedor configurado). gmail_app_password é gerada em
+    # https://myaccount.google.com/apppasswords (exige verificação em duas
+    # etapas ativada na conta).
+    gmail_user: str = ""
+    gmail_app_password: str = ""
 
     # URL pública do frontend, usada para montar o link de redefinição de senha.
     frontend_url: str = "http://localhost:3000"
