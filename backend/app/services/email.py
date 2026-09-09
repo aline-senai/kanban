@@ -1,56 +1,71 @@
-import json
 import logging
-import urllib.error
-import urllib.request
+import smtplib
+import socket
+from email.message import EmailMessage
 from html import escape
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-RESEND_API_URL = "https://api.resend.com/emails"
+GMAIL_SMTP_HOST = "smtp.gmail.com"
+GMAIL_SMTP_PORT = 587
+
+
+def _connect_ipv4(host: str, port: int, timeout: float) -> socket.socket:
+    """Conecta forçando IPv4.
+
+    O Render não tem rota IPv6 configurada; como o smtp.gmail.com também
+    publica endereço IPv6 (AAAA), a tentativa de conexão por IPv6 falhava
+    com "Network is unreachable" antes do fallback para IPv4 ocorrer.
+    """
+    last_exc: OSError | None = None
+    for family, socktype, proto, _, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
+        sock = None
+        try:
+            sock = socket.socket(family, socktype, proto)
+            sock.settimeout(timeout)
+            sock.connect(sockaddr)
+            return sock
+        except OSError as exc:
+            last_exc = exc
+            if sock is not None:
+                sock.close()
+    assert last_exc is not None
+    raise last_exc
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        return _connect_ipv4(host, port, timeout)
 
 
 def enviar_email(destinatario: str, assunto: str, corpo_texto: str, corpo_html: str | None = None) -> None:
-    """Envia um e-mail transacional via API HTTPS da Resend.
+    """Envia um e-mail transacional via SMTP do Gmail.
 
-    Sem RESEND_API_KEY configurada (dev/local), o envio é ignorado — a rota
-    que chama esta função nunca deve depender do retorno para decidir sua
-    resposta, para não vazar se o e-mail existe ou não na base.
-
-    Usamos a API HTTPS da Resend em vez de SMTP porque serviços como o Render
-    não garantem rota de saída para conexões SMTP brutas (a porta pode ficar
-    inalcançável mesmo quando o tráfego HTTPS de saída funciona normalmente).
+    Sem GMAIL_USER/GMAIL_APP_PASSWORD configurados (dev/local), o envio é
+    ignorado — a rota que chama esta função nunca deve depender do retorno
+    para decidir sua resposta, para não vazar se o e-mail existe ou não na
+    base.
     """
-    if not settings.resend_api_key:
-        logger.warning("RESEND_API_KEY não configurada: e-mail para %s não foi enviado.", destinatario)
+    if not settings.gmail_user or not settings.gmail_app_password:
+        logger.warning("GMAIL_USER/GMAIL_APP_PASSWORD não configurados: e-mail para %s não foi enviado.", destinatario)
         return
 
-    body = {
-        "from": settings.smtp_from,
-        "to": [destinatario],
-        "subject": assunto,
-        "text": corpo_texto,
-    }
+    msg = EmailMessage()
+    msg["Subject"] = assunto
+    msg["From"] = settings.gmail_user
+    msg["To"] = destinatario
+    msg.set_content(corpo_texto)
     if corpo_html is not None:
-        body["html"] = corpo_html
-
-    payload = json.dumps(body).encode("utf-8")
-
-    request = urllib.request.Request(
-        RESEND_API_URL,
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {settings.resend_api_key}",
-            "Content-Type": "application/json",
-        },
-    )
+        msg.add_alternative(corpo_html, subtype="html")
 
     try:
-        with urllib.request.urlopen(request, timeout=10):
-            pass
-    except (urllib.error.URLError, OSError):
+        with _IPv4SMTP(GMAIL_SMTP_HOST, GMAIL_SMTP_PORT, timeout=10) as smtp:
+            smtp.starttls()
+            smtp.login(settings.gmail_user, settings.gmail_app_password)
+            smtp.send_message(msg)
+    except (smtplib.SMTPException, OSError):
         logger.exception("Falha ao enviar e-mail para %s.", destinatario)
 
 
