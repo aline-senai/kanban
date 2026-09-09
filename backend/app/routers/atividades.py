@@ -11,6 +11,7 @@ from app.core.permissions import can_manage_grupo, has_turma_access, is_member_o
 from app.models.atividade import Atividade, AtividadeHistorico, AtividadeResponsavel, AtividadeVinculo
 from app.models.estagio import Estagio
 from app.models.grupo import Grupo, GrupoMembro
+from app.models.notificacao import Notificacao
 from app.models.sprint import Sprint
 from app.models.user import User
 from app.services.notificacoes import notificar_atribuicao
@@ -194,6 +195,7 @@ def delete_atividade(
     db.query(AtividadeVinculo).filter(
         or_(AtividadeVinculo.atividade_id == atividade_id, AtividadeVinculo.vinculada_id == atividade_id)
     ).delete()
+    db.query(Notificacao).filter(Notificacao.atividade_id == atividade_id).delete()
     db.delete(atividade)
     db.commit()
 
