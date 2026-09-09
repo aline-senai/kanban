@@ -148,4 +148,5 @@ def change_password(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Senha atual incorreta")
 
     current_user.hashed_password = hash_password(payload.senha_nova)
+    current_user.deve_trocar_senha = False
     db.commit()

@@ -45,6 +45,7 @@ def reset_senha(user_id: uuid.UUID, _: User = Depends(require_professor), db: Se
 
     senha_temporaria = gerar_senha_temporaria()
     user.hashed_password = hash_password(senha_temporaria)
+    user.deve_trocar_senha = True
     db.commit()
     return SenhaTemporariaOut(senha_temporaria=senha_temporaria)
 

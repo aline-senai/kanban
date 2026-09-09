@@ -1,8 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { api, clearToken, getToken, setToken, setUnauthorizedHandler, type User } from "./api";
+
+const ROTA_TROCA_OBRIGATORIA = "/trocar-senha-obrigatoria";
 
 type AuthContextValue = {
   user: User | null;
@@ -24,6 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!getToken()) {
@@ -37,12 +40,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (user?.deve_trocar_senha && pathname !== ROTA_TROCA_OBRIGATORIA) {
+      router.push(ROTA_TROCA_OBRIGATORIA);
+    }
+  }, [user, pathname, router]);
+
   async function login(email: string, password: string) {
     const { access_token } = await api.login(email, password);
     setToken(access_token);
     const me = await api.me();
     setUser(me);
-    router.push("/turmas");
+    router.push(me.deve_trocar_senha ? ROTA_TROCA_OBRIGATORIA : "/turmas");
   }
 
   async function register(name: string, email: string, password: string, role: "aluno" | "professor" = "aluno") {

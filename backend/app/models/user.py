@@ -26,6 +26,10 @@ class User(Base):
     # Aluno é sempre True.
     aprovado = Column(Boolean, nullable=False, default=True)
 
+    # True quando a senha foi gerada por um professor (reset-senha) e ainda não foi
+    # trocada pelo próprio usuário. Enquanto True, o app força a troca no próximo login.
+    deve_trocar_senha = Column(Boolean, nullable=False, default=False)
+
     notif_atribuicao = Column(Boolean, nullable=False, default=True)
     notif_prazo = Column(Boolean, nullable=False, default=True)
     notif_comentario = Column(Boolean, nullable=False, default=False)
