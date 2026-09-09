@@ -5,17 +5,10 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.atividade import Atividade, AtividadeResponsavel
 from app.models.estagio import Estagio
 from app.models.notificacao import Notificacao, NotificacaoTipo
 from app.models.user import User
-from app.services.email import enviar_email, montar_email_html
-
-
-def _link_atividade(atividade: Atividade) -> str:
-    turma_id = atividade.grupo.turma_id
-    return f"{settings.frontend_url}/turmas/{turma_id}/quadro"
 
 
 def _estagio_e_final(db: Session, atividade: Atividade) -> bool:
@@ -29,13 +22,12 @@ def _estagio_e_final(db: Session, atividade: Atividade) -> bool:
 
 
 def notificar_atribuicao(db: Session, atividade: Atividade, responsavel_ids: list[uuid.UUID]) -> None:
-    """RF28: avisa quem foi atribuído como responsável por uma atividade (in-app + e-mail)."""
+    """RF28: avisa quem foi atribuído como responsável por uma atividade (in-app)."""
     if not responsavel_ids:
         return
     usuarios = {
         u.id: u for u in db.query(User).filter(User.id.in_(responsavel_ids), User.notif_atribuicao.is_(True)).all()
     }
-    link = _link_atividade(atividade)
     for user_id in responsavel_ids:
         usuario = usuarios.get(user_id)
         if usuario is None:
@@ -47,18 +39,6 @@ def notificar_atribuicao(db: Session, atividade: Atividade, responsavel_ids: lis
                 tipo=NotificacaoTipo.ATRIBUICAO,
                 texto=f'Você foi atribuído à atividade "{atividade.nome}".',
             )
-        )
-        paragrafos = [
-            f"Olá, {usuario.name}.",
-            f'Você foi atribuído(a) como responsável pela atividade "{atividade.nome}".',
-        ]
-        if atividade.data_fim is not None:
-            paragrafos.append(f"Prazo: {atividade.data_fim.strftime('%d/%m/%Y')}.")
-        enviar_email(
-            usuario.email,
-            f'Nova atividade: "{atividade.nome}" — Quadro SENAI',
-            "\n".join(paragrafos) + f"\n\nAbra no app: {link}",
-            montar_email_html("Nova atividade atribuída a você", paragrafos, cta_texto="Abrir atividade", cta_url=link),
         )
 
 
@@ -170,12 +150,12 @@ def gerar_notificacoes_prazo_proximo(db: Session, user: User, janela_horas: int 
 
 
 def notificar_atividades_vencendo_hoje(db: Session) -> int:
-    """Envia e-mail (uma única vez por atividade+responsável) para quem tem uma atividade
-    com prazo para hoje. Diferente de `gerar_notificacoes_prazo_proximo` (que roda de forma
-    preguiçosa, só quando o usuário abre as notificações), esta função é pensada para rodar
-    uma vez por dia via um agendador externo (ver POST /notificacoes/jobs/vencendo-hoje).
+    """Gera (uma única vez por atividade+responsável) a notificação in-app de quem tem uma
+    atividade com prazo para hoje. Diferente de `gerar_notificacoes_prazo_proximo` (que roda
+    de forma preguiçosa, só quando o usuário abre as notificações), esta função é pensada
+    para rodar uma vez por dia via um agendador externo (ver POST /notificacoes/jobs/vencendo-hoje).
 
-    Retorna quantos e-mails foram enviados.
+    Retorna quantas notificações foram criadas.
     """
     agora = datetime.now(timezone.utc)
     inicio_do_dia = agora.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -187,7 +167,7 @@ def notificar_atividades_vencendo_hoje(db: Session) -> int:
         .all()
     )
 
-    enviados = 0
+    criadas = 0
     for atividade in atividades:
         if _estagio_e_final(db, atividade):
             continue
@@ -216,18 +196,7 @@ def notificar_atividades_vencendo_hoje(db: Session) -> int:
                     texto=f'O prazo da atividade "{atividade.nome}" vence hoje.',
                 )
             )
-            paragrafos = [
-                f"Olá, {responsavel.name}.",
-                f'A atividade "{atividade.nome}" vence hoje, {agora.strftime("%d/%m/%Y")}.',
-            ]
-            link = _link_atividade(atividade)
-            enviar_email(
-                responsavel.email,
-                f'Vence hoje: "{atividade.nome}" — Quadro SENAI',
-                "\n".join(paragrafos) + f"\n\nAbra no app: {link}",
-                montar_email_html("Atividade vence hoje", paragrafos, cta_texto="Abrir atividade", cta_url=link),
-            )
-            enviados += 1
+            criadas += 1
 
     db.commit()
-    return enviados
+    return criadas

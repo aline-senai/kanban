@@ -9,20 +9,6 @@ class Settings(BaseSettings):
     # Lista de origens liberadas no CORS, separadas por vírgula (ex: "https://app.vercel.app,https://outro.com").
     cors_origins: str = "http://localhost:3000"
 
-    # Envio de e-mails transacionais (recuperação de senha, nova atividade
-    # atribuída, atividade vencendo hoje) via Gmail API (OAuth2, HTTPS — o
-    # Render bloqueia SMTP de saída). Se alguma dessas ficar vazia, o envio
-    # é ignorado (modo dev/local sem provedor configurado). Veja
-    # backend/.env.example para como gerar cada uma.
-    google_client_id: str = ""
-    google_client_secret: str = ""
-    google_refresh_token: str = ""
-    gmail_user: str = ""
-
-    # URL pública do frontend, usada para montar o link de redefinição de senha.
-    frontend_url: str = "http://localhost:3000"
-    password_reset_token_expire_minutes: int = 60
-
     # Segredo compartilhado que protege POST /notificacoes/jobs/vencendo-hoje, pensado
     # para ser chamado 1x/dia por um agendador externo (cron, GitHub Actions, etc.) via
     # header "X-Cron-Secret". Vazio (padrão) desativa a rota.

@@ -67,6 +67,17 @@ export function NotificationsBell() {
     }
   }
 
+  async function handleResetarSenha(notificacao: Notificacao) {
+    if (!notificacao.referencia_user_id) return;
+    try {
+      const { senha_temporaria } = await api.resetSenhaAluno(notificacao.referencia_user_id);
+      window.alert(`Senha temporária: ${senha_temporaria}\n\nRepasse à pessoa e peça para trocá-la depois de entrar.`);
+      await handleMarcarLida(notificacao);
+    } catch {
+      carregar();
+    }
+  }
+
   async function handleMarcarTodasLidas() {
     setNotificacoes((prev) => prev.map((n) => ({ ...n, lida: true })));
     try {
@@ -127,6 +138,14 @@ export function NotificationsBell() {
                       className="mt-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white"
                     >
                       Aprovar professor
+                    </button>
+                  )}
+                  {n.tipo === "solicitacao_senha" && n.referencia_user_id && (
+                    <button
+                      onClick={() => handleResetarSenha(n)}
+                      className="mt-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white"
+                    >
+                      Resetar senha
                     </button>
                   )}
                 </li>

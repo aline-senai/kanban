@@ -318,11 +318,6 @@ export const api = {
     }),
   forgotPassword: (email: string) =>
     request<void>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
-  resetPassword: (token: string, senhaNova: string) =>
-    request<void>("/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ token, senha_nova: senhaNova }),
-    }),
   me: () => request<User>("/auth/me"),
   updateMe: (
     payload: Partial<Pick<User, "name" | "email" | "notif_atribuicao" | "notif_prazo" | "notif_comentario">>

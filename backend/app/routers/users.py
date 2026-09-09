@@ -35,12 +35,13 @@ def create_aluno(payload: UserCreate, _: User = Depends(require_professor), db: 
 
 
 @router.post("/{user_id}/reset-senha", response_model=SenhaTemporariaOut)
-def reset_senha_aluno(user_id: uuid.UUID, _: User = Depends(require_professor), db: Session = Depends(get_db)):
-    """Alternativa ao "esqueci minha senha" por e-mail: o professor gera uma senha
-    temporária e repassa ao aluno diretamente (ex: em sala, por WhatsApp)."""
+def reset_senha(user_id: uuid.UUID, _: User = Depends(require_professor), db: Session = Depends(get_db)):
+    """Alternativa ao "esqueci minha senha" por e-mail: um professor gera uma senha
+    temporária pra aluno ou outro professor (ex: em sala, por WhatsApp), a partir do
+    pedido de reset feito pela pessoa (tela de Equipe para aluno, notificação para professor)."""
     user = db.get(User, user_id)
-    if user is None or user.role != UserRole.ALUNO:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado")
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
 
     senha_temporaria = gerar_senha_temporaria()
     user.hashed_password = hash_password(senha_temporaria)

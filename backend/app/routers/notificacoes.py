@@ -53,7 +53,7 @@ def job_notificar_vencendo_hoje(
     x_cron_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    """Dispara o e-mail de "vence hoje" para todos os responsáveis com prazo no dia.
+    """Gera a notificação in-app de "vence hoje" para todos os responsáveis com prazo no dia.
 
     Não é uma rota de usuário: é feita para ser chamada 1x/dia por um agendador externo
     (cron do servidor, GitHub Actions com schedule, etc.), autenticada por um segredo
@@ -62,5 +62,5 @@ def job_notificar_vencendo_hoje(
     if not settings.cron_secret or not secrets.compare_digest(x_cron_secret, settings.cron_secret):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    enviados = notificar_atividades_vencendo_hoje(db)
-    return {"emails_enviados": enviados}
+    criadas = notificar_atividades_vencendo_hoje(db)
+    return {"notificacoes_criadas": criadas}

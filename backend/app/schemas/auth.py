@@ -11,7 +11,6 @@ __all__ = [
     "RegisterRequest",
     "RegisterOut",
     "ForgotPasswordRequest",
-    "ResetPasswordRequest",
 ]
 
 
@@ -45,8 +44,3 @@ class RegisterOut(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    senha_nova: str = Field(min_length=8)
