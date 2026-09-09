@@ -1,33 +1,23 @@
-import hashlib
-import secrets
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.password_reset import PasswordResetToken
+from app.models.notificacao import Notificacao, NotificacaoTipo
 from app.models.user import User, UserRole
 from app.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    RegisterOut,
     RegisterRequest,
-    ResetPasswordRequest,
     Token,
     UserOut,
 )
 from app.schemas.user import UserMeUpdate
-from app.services.email import enviar_email, montar_email_html
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 @router.post("/login", response_model=Token)
@@ -35,76 +25,88 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha inválidos")
+    if user.role == UserRole.PROFESSOR and not user.aprovado:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cadastro de professor aguardando aprovação de outro professor.",
+        )
 
     token = create_access_token(subject=str(user.id))
     return Token(access_token=token)
 
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """Autocadastro: qualquer pessoa pode criar sua própria conta, sempre como aluno."""
+    """Autocadastro como aluno (liberado na hora) ou professor (pendente de
+    aprovação de outro professor — o primeiro professor do sistema é auto-aprovado,
+    pra não travar o bootstrap)."""
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email já cadastrado")
+
+    aprovado = True
+    if payload.role == UserRole.PROFESSOR:
+        existe_professor = db.query(User).filter(User.role == UserRole.PROFESSOR).first() is not None
+        aprovado = not existe_professor
 
     user = User(
         name=payload.name,
         email=payload.email,
         hashed_password=hash_password(payload.password),
-        role=UserRole.ALUNO,
+        role=payload.role,
+        aprovado=aprovado,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
+    if payload.role == UserRole.PROFESSOR and not aprovado:
+        professores = (
+            db.query(User)
+            .filter(User.role == UserRole.PROFESSOR, User.aprovado.is_(True), User.id != user.id)
+            .all()
+        )
+        for professor in professores:
+            db.add(
+                Notificacao(
+                    user_id=professor.id,
+                    tipo=NotificacaoTipo.SOLICITACAO_PROFESSOR,
+                    referencia_user_id=user.id,
+                    texto=f'{user.name} ({user.email}) pediu para se cadastrar como professor.',
+                )
+            )
+        db.commit()
+        return RegisterOut(pendente_aprovacao=True)
+
     token = create_access_token(subject=str(user.id))
-    return Token(access_token=token)
+    return RegisterOut(access_token=token)
 
 
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Gera um link de redefinição e envia por e-mail.
+    """Não depende de e-mail: notifica os outros professores (aprovados), que
+    resetam a senha de quem pediu pelo botão "resetar senha" — na tela de
+    Equipe (aluno) ou na própria notificação (professor).
 
     A resposta é sempre a mesma exista ou não o e-mail na base, para não
     permitir que alguém descubra quais e-mails têm conta só tentando aqui.
     """
     user = db.query(User).filter(User.email == payload.email).first()
     if user is not None:
-        raw_token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.password_reset_token_expire_minutes
+        professores = (
+            db.query(User)
+            .filter(User.role == UserRole.PROFESSOR, User.aprovado.is_(True), User.id != user.id)
+            .all()
         )
-        db.add(
-            PasswordResetToken(
-                user_id=user.id,
-                token_hash=_hash_token(raw_token),
-                expires_at=expires_at,
+        for professor in professores:
+            db.add(
+                Notificacao(
+                    user_id=professor.id,
+                    tipo=NotificacaoTipo.SOLICITACAO_SENHA,
+                    referencia_user_id=user.id,
+                    texto=f'{user.name} ({user.email}) pediu para redefinir a senha.',
+                )
             )
-        )
         db.commit()
-
-        link = f"{settings.frontend_url}/redefinir-senha?token={raw_token}"
-        enviar_email(
-            user.email,
-            "Recuperação de senha — Quadro SENAI",
-            (
-                f"Olá, {user.name}.\n\n"
-                "Recebemos um pedido para redefinir sua senha no Quadro SENAI.\n"
-                f"Use o link abaixo (válido por {settings.password_reset_token_expire_minutes} minutos):\n\n"
-                f"{link}\n\n"
-                "Se você não pediu isso, pode ignorar este e-mail."
-            ),
-            montar_email_html(
-                "Recuperação de senha",
-                [
-                    f"Olá, {user.name}.",
-                    "Recebemos um pedido para redefinir sua senha no Quadro SENAI.",
-                    f"Este link é válido por {settings.password_reset_token_expire_minutes} minutos. "
-                    "Se você não pediu isso, pode ignorar este e-mail.",
-                ],
-                cta_texto="Redefinir senha",
-                cta_url=link,
-            ),
-        )
 
 
 @router.get("/me", response_model=UserOut)
@@ -146,29 +148,4 @@ def change_password(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Senha atual incorreta")
 
     current_user.hashed_password = hash_password(payload.senha_nova)
-    db.commit()
-
-
-@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    invalido = HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST, detail="Link de redefinição inválido ou expirado"
-    )
-
-    registro = (
-        db.query(PasswordResetToken)
-        .filter(PasswordResetToken.token_hash == _hash_token(payload.token))
-        .first()
-    )
-    if registro is None or registro.used_at is not None:
-        raise invalido
-    if registro.expires_at < datetime.now(timezone.utc):
-        raise invalido
-
-    user = db.get(User, registro.user_id)
-    if user is None:
-        raise invalido
-
-    user.hashed_password = hash_password(payload.senha_nova)
-    registro.used_at = datetime.now(timezone.utc)
     db.commit()

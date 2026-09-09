@@ -24,6 +24,10 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class SenhaTemporariaOut(BaseModel):
+    senha_temporaria: str
+
+
 class UserMeUpdate(BaseModel):
     name: str | None = None
     email: EmailStr | None = None

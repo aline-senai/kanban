@@ -30,14 +30,14 @@ export default function EsqueciSenhaPage() {
         <div>
           <h1 className="text-xl font-semibold">Recuperar acesso</h1>
           <p className="text-sm text-black/50 dark:text-white/50">
-            Informe seu e-mail institucional. Se houver uma conta, você recebe um link para redefinir a senha.
+            Informe seu e-mail institucional. Se houver uma conta, um professor é avisado e libera seu acesso.
           </p>
         </div>
 
         {enviado ? (
           <p className="rounded-md border border-black/10 p-3 text-sm dark:border-white/10">
-            Se {email} estiver cadastrado, um e-mail com o link de redefinição foi enviado. Confira também a
-            caixa de spam.
+            Se {email} estiver cadastrado, um professor foi avisado do seu pedido. Aguarde ele entrar em
+            contato com uma nova senha.
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -62,7 +62,7 @@ export default function EsqueciSenhaPage() {
               disabled={submitting}
               className="w-full rounded-md bg-blue-600 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {submitting ? "Enviando..." : "Enviar link de recuperação"}
+              {submitting ? "Enviando..." : "Avisar professor"}
             </button>
           </form>
         )}

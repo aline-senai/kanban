@@ -149,6 +149,19 @@ export default function EquipePage() {
     }
   }
 
+  async function handleResetSenha(aluno: User) {
+    if (!window.confirm(`Gerar uma senha temporária para ${aluno.name}?`)) return;
+    setError(null);
+    try {
+      const { senha_temporaria } = await api.resetSenhaAluno(aluno.id);
+      window.alert(
+        `Senha temporária de ${aluno.name}: ${senha_temporaria}\n\nRepasse ao aluno e peça para trocá-la depois de entrar.`
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Erro ao resetar senha");
+    }
+  }
+
   async function handleDeleteGrupo(grupoId: string, nome: string) {
     if (!window.confirm(`Remover o grupo "${nome}"?`)) return;
     setError(null);
@@ -294,6 +307,9 @@ export default function EquipePage() {
                         <span className="flex gap-2 text-xs">
                           <button onClick={() => toggleGestor(grupo.id, membro.user.id, membro.is_gestor)} className="underline">
                             {membro.is_gestor ? "remover gestor" : "tornar gestor"}
+                          </button>
+                          <button onClick={() => handleResetSenha(membro.user)} className="underline">
+                            resetar senha
                           </button>
                           <button onClick={() => removeMembro(grupo.id, membro.user.id)} className="underline">
                             remover

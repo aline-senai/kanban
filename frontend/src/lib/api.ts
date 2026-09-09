@@ -273,7 +273,15 @@ export type Comentario = {
 export type Notificacao = {
   id: string;
   atividade_id: string | null;
-  tipo: "atribuicao" | "mencao" | "comentario" | "prazo_proximo" | "prazo_hoje";
+  referencia_user_id: string | null;
+  tipo:
+    | "atribuicao"
+    | "mencao"
+    | "comentario"
+    | "prazo_proximo"
+    | "prazo_hoje"
+    | "solicitacao_senha"
+    | "solicitacao_professor";
   texto: string;
   lida: boolean;
   created_at: string;
@@ -303,18 +311,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
-  register: (name: string, email: string, password: string) =>
-    request<{ access_token: string; token_type: string }>("/auth/register", {
+  register: (name: string, email: string, password: string, role: "aluno" | "professor" = "aluno") =>
+    request<{ access_token?: string; token_type: string; pendente_aprovacao: boolean }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, role }),
     }),
   forgotPassword: (email: string) =>
     request<void>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
-  resetPassword: (token: string, senhaNova: string) =>
-    request<void>("/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ token, senha_nova: senhaNova }),
-    }),
   me: () => request<User>("/auth/me"),
   updateMe: (
     payload: Partial<Pick<User, "name" | "email" | "notif_atribuicao" | "notif_prazo" | "notif_comentario">>
@@ -340,6 +343,9 @@ export const api = {
   listAlunos: () => request<User[]>("/users"),
   createAluno: (name: string, email: string, password: string) =>
     request<User>("/users", { method: "POST", body: JSON.stringify({ name, email, password }) }),
+  resetSenhaAluno: (userId: string) =>
+    request<{ senha_temporaria: string }>(`/users/${userId}/reset-senha`, { method: "POST" }),
+  aprovarProfessor: (userId: string) => request<User>(`/users/${userId}/aprovar-professor`, { method: "POST" }),
 
   listGrupos: (turmaId: string) => request<Grupo[]>(`/turmas/${turmaId}/grupos`),
   createGrupo: (turmaId: string, nome: string, descricao?: string) =>

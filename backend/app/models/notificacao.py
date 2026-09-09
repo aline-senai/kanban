@@ -14,6 +14,8 @@ class NotificacaoTipo(str, enum.Enum):
     COMENTARIO = "comentario"
     PRAZO_PROXIMO = "prazo_proximo"
     PRAZO_HOJE = "prazo_hoje"
+    SOLICITACAO_SENHA = "solicitacao_senha"
+    SOLICITACAO_PROFESSOR = "solicitacao_professor"
 
 
 class Notificacao(Base):
@@ -22,10 +24,14 @@ class Notificacao(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     atividade_id = Column(UUID(as_uuid=True), ForeignKey("atividades.id"), nullable=True)
+    # Usado por SOLICITACAO_PROFESSOR: id do professor pendente que a notificação
+    # trata, pra permitir aprovar direto a partir dela.
+    referencia_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     tipo = Column(Enum(NotificacaoTipo), nullable=False)
     texto = Column(String, nullable=False)
     lida = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id])
     atividade = relationship("Atividade")
+    referencia_user = relationship("User", foreign_keys=[referencia_user_id])
