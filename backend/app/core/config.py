@@ -10,13 +10,14 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     # Envio de e-mails transacionais (recuperação de senha, nova atividade
-    # atribuída, atividade vencendo hoje) via SMTP do Gmail. Se
-    # gmail_user/gmail_app_password ficarem vazios, o envio é ignorado (modo
-    # dev/local sem provedor configurado). gmail_app_password é gerada em
-    # https://myaccount.google.com/apppasswords (exige verificação em duas
-    # etapas ativada na conta).
+    # atribuída, atividade vencendo hoje) via Gmail API (OAuth2, HTTPS — o
+    # Render bloqueia SMTP de saída). Se alguma dessas ficar vazia, o envio
+    # é ignorado (modo dev/local sem provedor configurado). Veja
+    # backend/.env.example para como gerar cada uma.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_refresh_token: str = ""
     gmail_user: str = ""
-    gmail_app_password: str = ""
 
     # URL pública do frontend, usada para montar o link de redefinição de senha.
     frontend_url: str = "http://localhost:3000"

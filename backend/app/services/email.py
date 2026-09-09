@@ -1,6 +1,9 @@
+import base64
+import json
 import logging
-import smtplib
-import socket
+import urllib.error
+import urllib.parse
+import urllib.request
 from email.message import EmailMessage
 from html import escape
 
@@ -8,48 +11,45 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-GMAIL_SMTP_HOST = "smtp.gmail.com"
-GMAIL_SMTP_PORT = 587
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
 
-def _connect_ipv4(host: str, port: int, timeout: float) -> socket.socket:
-    """Conecta forçando IPv4.
+def _obter_access_token() -> str:
+    """Troca o refresh token por um access token novo (expira em ~1h)."""
+    payload = urllib.parse.urlencode(
+        {
+            "client_id": settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "refresh_token": settings.google_refresh_token,
+            "grant_type": "refresh_token",
+        }
+    ).encode("utf-8")
 
-    O Render não tem rota IPv6 configurada; como o smtp.gmail.com também
-    publica endereço IPv6 (AAAA), a tentativa de conexão por IPv6 falhava
-    com "Network is unreachable" antes do fallback para IPv4 ocorrer.
-    """
-    last_exc: OSError | None = None
-    for family, socktype, proto, _, sockaddr in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM):
-        sock = None
-        try:
-            sock = socket.socket(family, socktype, proto)
-            sock.settimeout(timeout)
-            sock.connect(sockaddr)
-            return sock
-        except OSError as exc:
-            last_exc = exc
-            if sock is not None:
-                sock.close()
-    assert last_exc is not None
-    raise last_exc
-
-
-class _IPv4SMTP(smtplib.SMTP):
-    def _get_socket(self, host, port, timeout):
-        return _connect_ipv4(host, port, timeout)
+    request = urllib.request.Request(GOOGLE_TOKEN_URL, data=payload, method="POST")
+    with urllib.request.urlopen(request, timeout=10) as resp:
+        return json.loads(resp.read())["access_token"]
 
 
 def enviar_email(destinatario: str, assunto: str, corpo_texto: str, corpo_html: str | None = None) -> None:
-    """Envia um e-mail transacional via SMTP do Gmail.
+    """Envia um e-mail transacional via Gmail API (HTTPS), autenticado por OAuth2.
 
-    Sem GMAIL_USER/GMAIL_APP_PASSWORD configurados (dev/local), o envio é
+    Sem as credenciais do Google configuradas (dev/local), o envio é
     ignorado — a rota que chama esta função nunca deve depender do retorno
     para decidir sua resposta, para não vazar se o e-mail existe ou não na
     base.
+
+    Usamos a Gmail API em vez de SMTP porque o Render bloqueia conexões
+    SMTP de saída (confirmado: mesmo forçando IPv4, a conexão para
+    smtp.gmail.com:587 dá timeout) — só tráfego HTTPS funciona.
     """
-    if not settings.gmail_user or not settings.gmail_app_password:
-        logger.warning("GMAIL_USER/GMAIL_APP_PASSWORD não configurados: e-mail para %s não foi enviado.", destinatario)
+    if not (
+        settings.google_client_id
+        and settings.google_client_secret
+        and settings.google_refresh_token
+        and settings.gmail_user
+    ):
+        logger.warning("Credenciais da Gmail API não configuradas: e-mail para %s não foi enviado.", destinatario)
         return
 
     msg = EmailMessage()
@@ -60,12 +60,22 @@ def enviar_email(destinatario: str, assunto: str, corpo_texto: str, corpo_html: 
     if corpo_html is not None:
         msg.add_alternative(corpo_html, subtype="html")
 
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
+
     try:
-        with _IPv4SMTP(GMAIL_SMTP_HOST, GMAIL_SMTP_PORT, timeout=10) as smtp:
-            smtp.starttls()
-            smtp.login(settings.gmail_user, settings.gmail_app_password)
-            smtp.send_message(msg)
-    except (smtplib.SMTPException, OSError):
+        access_token = _obter_access_token()
+        request = urllib.request.Request(
+            GMAIL_SEND_URL,
+            data=json.dumps({"raw": raw}).encode("utf-8"),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=10):
+            pass
+    except (urllib.error.URLError, OSError, KeyError, ValueError):
         logger.exception("Falha ao enviar e-mail para %s.", destinatario)
 
 
