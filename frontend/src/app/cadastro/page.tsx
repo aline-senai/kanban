@@ -7,12 +7,14 @@ import { ApiError } from "@/lib/api";
 
 export default function CadastroPage() {
   const { register } = useAuth();
+  const [papel, setPapel] = useState<"aluno" | "professor">("aluno");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pendente, setPendente] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,12 +31,30 @@ export default function CadastroPage() {
 
     setSubmitting(true);
     try {
-      await register(nome, email, senha);
+      const { pendenteAprovacao } = await register(nome, email, senha, papel);
+      if (pendenteAprovacao) setPendente(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Não foi possível criar a conta");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (pendente) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-4">
+        <div className="w-full max-w-sm space-y-4 text-center">
+          <h1 className="text-xl font-semibold">Cadastro enviado</h1>
+          <p className="text-sm text-black/60 dark:text-white/60">
+            Sua conta de professor foi criada, mas precisa ser aprovada por um professor que já tenha acesso
+            ao sistema. Você recebe acesso assim que alguém aprovar.
+          </p>
+          <Link href="/login" className="inline-block text-sm underline">
+            ← Voltar para o login
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -43,8 +63,38 @@ export default function CadastroPage() {
         <div>
           <h1 className="text-xl font-semibold">Criar conta</h1>
           <p className="text-sm text-black/50 dark:text-white/50">
-            Seu acesso será criado como integrante. O gestor da turma adiciona você a um grupo depois.
+            {papel === "aluno"
+              ? "Seu acesso será criado como integrante. O gestor da turma adiciona você a um grupo depois."
+              : "Cadastro de professor precisa ser aprovado por um professor já existente antes de liberar o acesso."}
           </p>
+        </div>
+
+        <div className="space-y-1">
+          <span className="text-sm font-medium">Eu sou</span>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <button
+              type="button"
+              onClick={() => setPapel("aluno")}
+              className={`rounded-md border px-3 py-2 ${
+                papel === "aluno"
+                  ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
+                  : "border-black/15 dark:border-white/15"
+              }`}
+            >
+              Aluno
+            </button>
+            <button
+              type="button"
+              onClick={() => setPapel("professor")}
+              className={`rounded-md border px-3 py-2 ${
+                papel === "professor"
+                  ? "border-black bg-black text-white dark:border-white dark:bg-white dark:text-black"
+                  : "border-black/15 dark:border-white/15"
+              }`}
+            >
+              Professor
+            </button>
+          </div>
         </div>
 
         <div className="space-y-1">

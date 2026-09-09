@@ -8,7 +8,12 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    role?: "aluno" | "professor"
+  ) => Promise<{ pendenteAprovacao: boolean }>;
   logout: () => void;
   refreshMe: () => Promise<void>;
 };
@@ -40,12 +45,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/turmas");
   }
 
-  async function register(name: string, email: string, password: string) {
-    const { access_token } = await api.register(name, email, password);
+  async function register(name: string, email: string, password: string, role: "aluno" | "professor" = "aluno") {
+    const { access_token, pendente_aprovacao } = await api.register(name, email, password, role);
+    if (pendente_aprovacao || !access_token) {
+      return { pendenteAprovacao: true };
+    }
     setToken(access_token);
     const me = await api.me();
     setUser(me);
     router.push("/turmas");
+    return { pendenteAprovacao: false };
   }
 
   function logout() {

@@ -10,6 +10,8 @@ const TIPO_LABEL: Record<Notificacao["tipo"], string> = {
   comentario: "Comentário",
   prazo_proximo: "Prazo",
   prazo_hoje: "Vence hoje",
+  solicitacao_senha: "Redefinir senha",
+  solicitacao_professor: "Novo professor",
 };
 
 export function NotificationsBell() {
@@ -50,6 +52,16 @@ export function NotificationsBell() {
     setNotificacoes((prev) => prev.map((n) => (n.id === notificacao.id ? { ...n, lida: true } : n)));
     try {
       await api.marcarNotificacaoLida(notificacao.id);
+    } catch {
+      carregar();
+    }
+  }
+
+  async function handleAprovarProfessor(notificacao: Notificacao) {
+    if (!notificacao.referencia_user_id) return;
+    try {
+      await api.aprovarProfessor(notificacao.referencia_user_id);
+      await handleMarcarLida(notificacao);
     } catch {
       carregar();
     }
@@ -99,18 +111,24 @@ export function NotificationsBell() {
           ) : (
             <ul className="max-h-80 space-y-1 overflow-y-auto">
               {notificacoes.map((n) => (
-                <li key={n.id}>
-                  <button
-                    onClick={() => handleMarcarLida(n)}
-                    className={`w-full rounded-md px-2 py-1.5 text-left text-sm ${
-                      n.lida ? "opacity-60" : "bg-black/[.03] dark:bg-white/[.06]"
-                    }`}
-                  >
+                <li
+                  key={n.id}
+                  className={`rounded-md px-2 py-1.5 text-sm ${n.lida ? "opacity-60" : "bg-black/[.03] dark:bg-white/[.06]"}`}
+                >
+                  <button onClick={() => handleMarcarLida(n)} className="w-full text-left">
                     <span className="text-xs font-medium text-black/60 dark:text-white/60">
                       {TIPO_LABEL[n.tipo]} · {new Date(n.created_at).toLocaleString("pt-BR")}
                     </span>
                     <p>{n.texto}</p>
                   </button>
+                  {n.tipo === "solicitacao_professor" && n.referencia_user_id && (
+                    <button
+                      onClick={() => handleAprovarProfessor(n)}
+                      className="mt-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white"
+                    >
+                      Aprovar professor
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

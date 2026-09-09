@@ -9,6 +9,7 @@ from app.models.notificacao import NotificacaoTipo
 class NotificacaoOut(BaseModel):
     id: uuid.UUID
     atividade_id: uuid.UUID | None
+    referencia_user_id: uuid.UUID | None
     tipo: NotificacaoTipo
     texto: str
     lida: bool

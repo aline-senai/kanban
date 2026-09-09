@@ -21,6 +21,11 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.ALUNO)
 
+    # Só relevante para professor: cadastro público de professor fica pendente até
+    # outro professor aprovar (o primeiro professor do sistema é auto-aprovado).
+    # Aluno é sempre True.
+    aprovado = Column(Boolean, nullable=False, default=True)
+
     notif_atribuicao = Column(Boolean, nullable=False, default=True)
     notif_prazo = Column(Boolean, nullable=False, default=True)
     notif_comentario = Column(Boolean, nullable=False, default=False)

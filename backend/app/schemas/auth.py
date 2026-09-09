@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 
+from app.models.user import UserRole
 from app.schemas.user import UserOut
 
 __all__ = [
@@ -8,6 +9,7 @@ __all__ = [
     "UserOut",
     "ChangePasswordRequest",
     "RegisterRequest",
+    "RegisterOut",
     "ForgotPasswordRequest",
     "ResetPasswordRequest",
 ]
@@ -32,6 +34,13 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     password: str = Field(min_length=8)
+    role: UserRole = UserRole.ALUNO
+
+
+class RegisterOut(BaseModel):
+    access_token: str | None = None
+    token_type: str = "bearer"
+    pendente_aprovacao: bool = False
 
 
 class ForgotPasswordRequest(BaseModel):
