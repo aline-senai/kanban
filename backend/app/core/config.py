@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -23,6 +24,16 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
+    @field_validator("database_url")
+    @classmethod
+    def _force_psycopg2_driver(cls, value: str) -> str:
+        # O Render (e outros provedores) entrega a URL como "postgres://" ou "postgresql://";
+        # o driver instalado é o psycopg2, então normalizamos o prefixo.
+        for prefix in ("postgres://", "postgresql://", "postgresql+psycopg://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg2://" + value[len(prefix):]
+        return value
 
     @property
     def cors_origins_list(self) -> list[str]:
